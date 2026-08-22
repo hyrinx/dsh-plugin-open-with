@@ -17,3 +17,18 @@ logs/
 # ── npm 打包临时产物
 *.tgz
 .pkg_cache.json
+
+# ── IDE / 编辑器
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ── OS 垃圾文件
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── 本地环境变量
+.env
+.env.local

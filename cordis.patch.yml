@@ -1,0 +1,9 @@
+# dsh-plugin-open-with: adds a capsule split-button ("Open" + target
+# picker) to the conversation session header. The host side registers
+# an RPC handler that dispatches to code/cmd/explorer (and more later)
+# via the subprocess capability; the browser side injects the button
+# into conversation.session.header.actions.
+
+- insert:
+    - id: open-with
+      name: 'dsh-plugin-open-with'

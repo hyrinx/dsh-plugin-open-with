@@ -1,14 +1,8 @@
 /**
- * Capsule-style "Open" split button for the conversation session header.
+ * Capsule-style "Open" split-button for the conversation session header.
  *
- * Left half: invokes the last chosen target (default = VS Code).
- * Right half: a chevron that opens a three-item popover
- *   (Open VS Code / Open Terminal / Open Folder).
- *
- * Icons are extracted directly from system .exe files (VS Code,
- * Windows Terminal / cmd, explorer.exe) and embedded as base64 PNG
- * data URLs via `src/assets.ts` — no hand-drawn SVG, pixel-identical
- * to the icons the user sees in their taskbar / Start menu.
+ * Left: launches the currently chosen target (default = VS Code).
+ * Right: chevron opening a three-item popover (VS Code / Terminal / Folder).
  */
 import { useCallback, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
 import { IconChevronDownOutline14, useDismissOnOutsidePointer } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -17,33 +11,20 @@ import type { InjectFace } from '@deepseek-ai/dsh-client-ui-slots'
 import type { RpcResult } from '@deepseek-ai/dsh-host-apiproxy/api'
 import { vscodePngDataUrl, terminalPngDataUrl, folderPngDataUrl } from '../assets.js'
 
-/** The three launch targets shared between the host and client. */
 type LaunchTarget = 'code' | 'cmd' | 'explorer'
 
-/** Registration-side business face: the launch callback + cwd lookup + log forwarder. */
 export interface OpenWithInjected {
-  /** Call the host to spawn the chosen app at the given directory. */
   launch: (cwd: string, target?: LaunchTarget) => Promise<RpcResult<unknown>>
-  /** Resolve the workspace directory for the given session id. */
   getCwd: (sessionId: string) => string | undefined
-  /** Forward a log line into the host log file (best-effort). */
   log: (level: 'info' | 'warn' | 'error', message: string, extra?: unknown) => void
 }
 
-/** Full component props: runtime share + locale + inject face. */
 export type OpenWithButtonProps =
   PropsRuntime<'conversation.session.header.actions'>
   & PropsLocale<'openWith'>
   & InjectFace<OpenWithInjected>
 
-/**
- * Render a system-extracted PNG icon via a base64 data URL.
- *
- * `image-rendering: -webkit-optimize-contrast` keeps the 32×32 source
- * crisp when scaled down to 14–16px (Chrome/Edge/Safari). Firefox uses
- * `crisp-edges` as its vendor prefix; both fall back to `auto` on
- * unsupported browsers.
- */
+/** Renders a data-URL PNG icon at a given size. */
 function PngIcon({ src, size = 14 }: { src: string; size?: number }) {
   return (
     <img
@@ -57,14 +38,13 @@ function PngIcon({ src, size = 14 }: { src: string; size?: number }) {
         width: size,
         height: size,
         imageRendering: '-webkit-optimize-contrast',
-        // @ts-expect-error — Firefox prefixed variant, harmless on others
+        // @ts-expect-error — Firefox vendor prefix, harmless elsewhere.
         imageRendering: '-moz-crisp-edges',
       }}
     />
   )
 }
 
-/** Wrapper so the rest of the file doesn't need to know the concrete data URL. */
 function VscodeIcon({ size = 14 }: { size?: number }) {
   return <PngIcon src={vscodePngDataUrl} size={size} />
 }
@@ -75,21 +55,14 @@ function FolderIcon({ size = 14 }: { size?: number }) {
   return <PngIcon src={folderPngDataUrl} size={size} />
 }
 
-/** Static ordered targets. */
 const TARGETS: readonly LaunchTarget[] = ['code', 'cmd', 'explorer'] as const
 
-/** Per-target metadata: inline icon + i18n key. */
 const TARGET_META: Record<LaunchTarget, { icon: (size: number) => JSX.Element; labelKey: `target.${LaunchTarget}` }> = {
   code: { icon: (s) => <VscodeIcon size={s} />, labelKey: 'target.code' },
   cmd: { icon: (s) => <TerminalIcon size={s} />, labelKey: 'target.cmd' },
   explorer: { icon: (s) => <FolderIcon size={s} />, labelKey: 'target.explorer' },
 }
 
-/**
- * Run the launch flow against a concrete target. Fires logging + RPC but
- * intentionally keeps no visible UI state: the user opted out of the
- * opening/opened/failed inline toast-style label mutation.
- */
 function useLaunchFlow(
   target: LaunchTarget,
   sessionId: string,
@@ -116,16 +89,9 @@ function useLaunchFlow(
 }
 
 /**
- * Render the capsule split-button.
- *
- * Layout structure:
- *   ┌ root (inline-flex, 6px pill radius, 1px border, 2px gap) ──────────┐
- *   │ [ action | <sep> | picker ]                                        │
- *   └────────────────────────────────────────────────────────────────────┘
- *
- * Popover position: anchored to the bottom-right of the picker half.
- * @param props - composed slot props.
- * @returns the button + popover tree.
+ * Render the capsule split-button + popover.
+ * Layout: [ action | <sep> | picker ] with the popover anchored to the
+ * bottom-right of the picker half.
  */
 export function OpenWithButton({
   sessionId, launch, getCwd, log, t,
@@ -138,10 +104,6 @@ export function OpenWithButton({
 
   const { run } = useLaunchFlow(target, sessionId, launch, getCwd, log)
 
-  // Label follows the currently selected target so the left half shows the
-  // full action name ("打开 VS Code" / "Open Terminal" / …) instead of the
-  // generic "Open" word. Use a literal template key cast because OpenWithKey
-  // is declared as a mapped interface rather than a discriminated union.
   const labelKey = `target.${target}` as 'target.code'
   const label = t(labelKey)
   const title = t('tooltip')
@@ -156,7 +118,6 @@ export function OpenWithButton({
   }
 
   const onActionClick = (_ev: MouseEvent<HTMLButtonElement>): void => {
-    // Close any open menu on action press.
     if (open) setOpen(false)
     void run()
   }
@@ -168,8 +129,6 @@ export function OpenWithButton({
   const selectTarget = (next: LaunchTarget): void => {
     setTarget(next)
     setOpen(false)
-    // Fire the launch in the same commit — a single gesture selects the
-    // target and immediately launches it (matches Trae Work's UX).
     const cwd = getCwd(sessionId)
     if (cwd === undefined || cwd.length === 0) {
       log('warn', 'cwd not found for session', { sessionId })
@@ -187,8 +146,6 @@ export function OpenWithButton({
   const hoverVar = 'var(--dsw-hover, rgba(0,0,0,0.05))'
   const borderVar = 'var(--dsw-border-strong, rgba(0,0,0,0.12))'
   const textVar = 'var(--dsw-fg, inherit)'
-  // Matches master JobListAction.module.css menu tokens so the popover
-  // blends into the shell's dsw theme rather than forcing a flat white.
   const menuBgVar = 'var(--dsw-specific-menu, transparent)'
   const menuBorderVar = 'var(--dsw-alias-border-l2, rgba(0,0,0,0.08))'
   const menuShadowVar = 'var(--dsw-shadow-lv3, 0 8px 24px rgba(0,0,0,0.08))'
@@ -201,8 +158,6 @@ export function OpenWithButton({
         position: 'relative',
         display: 'inline-flex',
         alignItems: 'stretch',
-        // Pill height is the source of truth; inner children use
-        // height:100% so hover background fills up against the border.
         height: '28px',
         padding: 0,
         borderRadius: '6px',
@@ -210,7 +165,6 @@ export function OpenWithButton({
         background: 'transparent',
         color: textVar,
         fontSize: '13px',
-        // Dropdown menu needs to paint outside this box — keep visible.
         overflow: 'visible',
       }}
     >
@@ -228,8 +182,6 @@ export function OpenWithButton({
           background: 'transparent',
           color: 'inherit',
           cursor: 'pointer',
-          // Match root radius exactly so the hover fill sits flush on
-          // both the outer border edge AND the pill's rounded corners.
           borderRadius: '6px 0 0 6px',
           transition: 'background 0.15s',
         }}

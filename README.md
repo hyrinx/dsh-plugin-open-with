@@ -14,6 +14,7 @@
     <a href="https://www.npmjs.com/package/dsh-plugin-open-with"><img src="https://img.shields.io/npm/dt/dsh-plugin-open-with?logo=npm&color=cb6b5b" alt="downloads" /></a>
   </p>
   <p>
+    <a href="#screenshot">效果图</a> ·
     <a href="#features">功能</a> ·
     <a href="#install">安装</a> ·
     <a href="#security-model">安全模型</a> ·
@@ -26,6 +27,10 @@
     Capsule split-button in the dsh web conversation header: open the workspace in VS Code, terminal, or file explorer — extensible to more launchers.
   </blockquote>
 </div>
+
+## 🖼 效果图 <a name="screenshot"></a> <span lang="en">Screenshot</span>
+
+![胶囊拆分按钮效果图](https://github.com/hyrinx/dsh-plugin-open-with/raw/main/assets/screenshot-1.png)
 
 ## 🧩 功能 <a name="features"></a> <span lang="en">Features</span>
 
@@ -145,7 +150,6 @@ npm pack            # 无 WARN / error
 日志:（本地源码安装在 `<项目>/logs/`，npm 安装在 `~/.dsh/logs/dsh-plugin-open-with/`）。
 
 ---
-
 
 ## 📜 License <a name="license"></a> <span lang="en">License</span>
 

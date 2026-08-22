@@ -1,14 +1,14 @@
 /** i18n keys for the Open-with capsule split-button. */
 export interface OpenWithKey {
-  /** Primary button label (opens the currently selected target, defaults to VS Code). */
+  /** Primary button label for the currently chosen target. */
   label: string
-  /** Tooltip shown on hover. */
+  /** Hover tooltip on the action half of the split button. */
   tooltip: string
-  /** Loading state text. */
+  /** Launching state text (reserved, UI will adopt in a future update). */
   launching: string
-  /** Success state text. */
+  /** Success state text (reserved). */
   opened: string
-  /** Error state text. */
+  /** Error state text (reserved). */
   failed: string
   /** Dropdown label: open VS Code. */
   'target.code': string

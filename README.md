@@ -1,385 +1,145 @@
 <div align="center">
+  <p>
+    <img src="https://github.com/hyrinx/dsh-plugin-open-with/raw/main/assets/icon.png" alt="dsh-plugin-open-with logo" width="128" height="128" />
+  </p>
+  <h1>dsh-plugin-open-with</h1>
+  <p>
+    <strong>打开方式 · 胶囊拆分按钮</strong><br />
+    在 DeepSeek Harness Web 会话头部添加胶囊拆分按钮，一键在当前工作区打开 VS Code、终端和文件资源管理器。
+  </p>
+  <p>
+    <a href="https://www.npmjs.com/package/dsh-plugin-open-with"><img src="https://img.shields.io/npm/v/dsh-plugin-open-with?logo=npm&label=" alt="npm" /></a>
+    <a href="https://github.com/hyrinx/dsh-plugin-open-with/blob/main/LICENSE"><img src="https://img.shields.io/npm/l/dsh-plugin-open-with" alt="License" /></a>
+    <img src="https://img.shields.io/badge/platform-win32-6fa8dc" alt="platform" />
+    <a href="https://www.npmjs.com/package/dsh-plugin-open-with"><img src="https://img.shields.io/npm/dt/dsh-plugin-open-with?logo=npm&color=cb6b5b" alt="downloads" /></a>
+  </p>
+  <p>
+    <a href="#features">功能</a> ·
+    <a href="#install">安装</a> ·
+    <a href="#security-model">安全模型</a> ·
+    <a href="#known-limitations">已知限制</a> ·
+    <a href="#build-and-extend">构建与扩展</a> ·
+    <a href="#contributing">贡献</a> ·
+    <a href="#license">License</a>
+  </p>
+  <blockquote>
+    Capsule split-button in the dsh web conversation header: open the workspace in VS Code, terminal, or file explorer — extensible to more launchers.
+  </blockquote>
+</div>
 
-<p align="center">
-  <strong>🌐 双语版 / Bilingual</strong> · 上方折叠区中文 / 下方折叠区 English
-</p>
+## 🧩 功能 <a name="features"></a> <span lang="en">Features</span>
 
-<p align="center">
-  Repository: <a href="https://github.com/hyrinx/dsh-plugin-open-with">github.com/hyrinx/dsh-plugin-open-with</a> ·
-  Package: <a href="https://www.npmjs.com/package/dsh-plugin-open-with"><code>dsh-plugin-open-with</code> on npm</a> ·
-  License: <a href="LICENSE">MIT</a>
-</p>
-
-<p align="center">
-  <a href="https://www.npmjs.com/package/dsh-plugin-open-with"><img alt="npm version" src="https://img.shields.io/npm/v/dsh-plugin-open-with?logo=npm&label=npm"></a>
-  <a href="https://www.npmjs.com/package/dsh-plugin-open-with"><img alt="npm monthly downloads" src="https://img.shields.io/npm/dm/dsh-plugin-open-with?logo=npm&label=downloads&color=cb3837"></a>
-  <a href="#supported-platforms--支持平台"><img alt="platform: Windows" src="https://img.shields.io/badge/platform-Windows-0078D4?logo=windows11&logoColor=white"></a>
-  <a href="#installation--安装"><img alt="DSH engine >= 0.1.1-rc.1" src="https://img.shields.io/badge/dsh-%E2%89%A50.1.1--rc.1-7C3AED?labelColor=0F172A"></a>
-  <a href="LICENSE"><img alt="license: MIT" src="https://img.shields.io/github/license/hyrinx/dsh-plugin-open-with"></a>
-  <a href="https://www.conventionalcommits.org/"><img alt="Conventional Commits" src="https://img.shields.io/badge/commits-Conventional-FE5196?logo=conventionalcommits&logoColor=white"></a>
-  <a href="#installation--安装"><img alt="Open in DSH Web Profile" src="https://img.shields.io/badge/DSH-Add%20to%20Web%20Profile-111827?logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNCIgaGVpZ2h0PSIxNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjIuNSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cG9seWxpbmU9IjkgMTggMTUgMTIgOSA2Ij48L3N2Zz4="></a>
-</p>
-
----
-
-<p align="center">
-<strong>🇨🇳 一句话简介</strong>　在 DeepSeek Harness Web 会话头部加一个<strong>胶囊拆分按钮</strong>，一键打开当前工作区的 VS Code、cmd/Windows Terminal 和文件资源管理器（仅 Windows）。
-</p>
-
-<p align="center">
-<strong>🇺🇸 TL;DR</strong>　A DSH bundle plugin adding a <strong>capsule split-button</strong> to the dsh web conversation header: launch VS Code, cmd/Windows Terminal & File Explorer at the current workspace with one click (Windows only).
-</p>
-
----
-
-<p align="center">
-<img alt="Concept screenshot placeholder" src="https://via.placeholder.com/680x88?text=open-with+capsule+splitter+in+conversation+header">
-</p>
-
----
-
-<!-- ============================================================ -->
-
-<!-- 🇨🇳 简体中文全文 · Simplified Chinese · 默认展开 / open by default -->
-
-<!-- ============================================================ -->
-
-<details open>
-<summary>
- 
-<strong>🇨🇳 简体中文全文（默认展开）</strong>
- 
-<sup><em>点我折叠 / Click to collapse</em></sup>
-</summary>
+- 💊 **胶囊拆分按钮**：左半边执行当前选择的启动器（默认 VS Code，显示对应的图标与标签，如「打开 VS Code」）；右半边下拉菜单列出全部三个启动器，点击菜单项即切换并立即启动。固定 hover tooltip 为「在 VS Code、终端或文件管理器中打开工作区」，不随启动器切换。
+- 🛠 **三个内置启动器**（均通过 DSH `subprocess` 服务在宿主端启动）：
+  - **打开 VS Code**：调用 `ctx.subprocess.resolveExecutable('code')` 解析 PATH 上的 VS Code CLI，随后把工作区路径作为唯一参数传给它。Windows 下因 Node 无法直接 spawn `.CMD` 文件，结果会被 `cmd /c` 包裹一次；macOS / Linux 直接 spawn 返回的可执行文件。
+  - **打开终端**：按平台选择 shell：Windows 用 `cmd.exe` 并通过 `start "cmdPath" cmd /K "title X && cd /d <cwd>"` 开一个独立的新控制台窗口（不会继承 dsh 宿主的 console）；macOS 按 `$SHELL` 选 `zsh`/`bash`；Linux 用 `$SHELL` 或回退 `bash`。
+  - **打开文件夹**：Windows 调 `explorer.exe <cwd>`，macOS 调 `/usr/bin/open <cwd>`，Linux 调 `xdg-open <cwd>`。
+- 🌍 **中英双语 UI**：按钮标签、下拉菜单、hover tooltip、ARIA 标签都内置 `zh` / `en` 两套字典，通过 `ctx.locale.register('openWith', { zh, en })` 注册，跟随 DSH 客户端全局 locale 自动切换。
+- 🧱 **可扩展**：新增启动器要改三处——宿主 `src/index.ts` 的 `buildSpawnSpec()` switch 加一个 `case`，同时在浏览器端 `TARGETS` 常量、`TARGET_META` 映射，以及 `src/client/locales.ts` 字典里各加一条。目前没有开放的运行时 SPI，扩展需要 fork/改本插件源码。
+- 📦 **薄宿主 + 薄浏览器端**：浏览器端只在 `conversation.session.header.actions` 插槽注入一个按钮组件；宿主端只注册 `/open-with` 一个 RPC 通道，含两个 endpoint——`launch(cwd, target)` 负责 spawn，`log(level, message, extra)` 负责把浏览器侧 console 行转发到宿主的日志文件。其余全部走 DSH 既有的 `subprocess`、`connection`、`locale`、`sessions`、`slots` 五个依赖服务。
+- 🎨 **系统原生图标**：按钮与菜单项使用系统提取的原生 PNG 图标，视觉与任务栏 / 开始菜单保持一致。
+- 🔒 **仅回环浏览器可用**：`/open-with` RPC 通道在 DSH 连接层以 `{ authority: 'loopback' }` 注册，非本机回环访问直接被网关拦截；浏览器端同时也只接受会话列表 snapshot 里真实存在的工作区路径，缺失则静默记录日志、不发起 spawn。
 
 ---
 
-## 功能
+## 🚀 安装 <a name="install"></a> <span lang="en">Install</span>
 
-- **左侧按钮** — 在当前会话的工作区目录下启动用户最近一次选择的目标。按钮左侧的图标会根据当前目标自动切换（VS Code 线描图标 / 终端图标 / 文件夹图标）。
-- **右侧选择箭头** — 毛玻璃风格的下拉菜单，**一次点击**既切换记忆中的默认目标，又立即执行启动（参照 Trae Work 的交互）。内置三种目标：
-  - `code` — 通过 `code` CLI 命令打开 Visual Studio Code 桌面版
-  - `cmd`  — 在工作区打开一个交互终端（跨平台自动选择：Windows 下为 `cmd.exe /K cd /d <cwd>`；macOS / Linux 下按 `$SHELL` 选择 `zsh -i` / `bash -i` / `sh -i`）
-  - `explorer` — 在工作区打开系统文件管理器（Windows 下 `explorer.exe`，macOS 下 `/usr/bin/open`，Linux 下 `xdg-open`）
-- **RPC 通道** — Host 侧注册 `/open-with` 端点，带 `loopback` 权限围栏；提供 `launch` 与 `log` 两个动作。Client 侧通过 `log` 端点把浏览器端的日志转发到宿主端，于是 `~/.dsh/logs/dsh-plugin-open-with/` 下的一个按日轮转日志文件就能同时抓到插件两侧的诊断。
-- **跨平台 home 路径** — 日志目录的查找顺序与 `@deepseek-ai/dsh-home-paths` 一致（显式 override → `$DSH_HOME` 环境变量 → `~/.dsh`），守护进程、systemd 单元、Docker 容器等可通过统一的环境变量重定向日志。
-- **安全语义** — `resolveExecutable` 对 `code` / `cmd` / `explorer` 的查找会拒绝路径分隔符；`spawn` 调用时继承 subprocess 服务清洗过的环境，而非原始宿主进程环境。
+### 方式一：从 npm 安装（推荐）<span lang="en">Install from npm (recommended)</span>
 
-## 架构
-
-```
-浏览器侧 (React)                                 宿主侧 (Node)
-┌──────────────────────────────┐               ┌──────────────────────────────┐
-│ OpenWithButton               │  RPC /open-with│ buildSpawnSpec(target)       │
-│  ├─ action 半区：启动上次    │ ─────────────→│ resolveExecutable('code')    │
-│  └─ picker：切换 + 立即启动  │    launch/log │ spawn(code / cmd / explorer) │
-│ slot: header.actions         │               │ logger → ~/.dsh/logs/...     │
-└──────────────────────────────┘               └──────────────────────────────┘
-```
-
-## 支持平台
-
-| 操作系统                      | 状态          | 备注                                                          |
-| ----------------------------- | ------------- | ------------------------------------------------------------- |
-| **Windows 10 / 11 x64** | ✅ 主支持     | 原生支持`code`、`cmd`、`explorer.exe`                   |
-| macOS（任意架构）             | ⚠️ 社区支持 | `code` + `$SHELL` + `/usr/bin/open`；未做终端标题栏特化 |
-| Linux（任意发行版）           | ⚠️ 社区支持 | `code` + `$SHELL` + `xdg-open`                          |
-
-最低宿主引擎版本：**DSH `>= 0.1.1-rc.1`**（声明于 `package.json → dsh.engines.dsh`）。最低 Node 运行时：`^22.19 || >=24`（`package.json → engines.node`）。
-
-## 安装
-
-### 通过 npm 安装（最终用户，唯一推荐方式）
-
-本插件已发布到 npm，**直接通过包名安装，无需克隆源码或本地路径链接**：
+已发布到 npm：**[dsh-plugin-open-with](https://www.npmjs.com/package/dsh-plugin-open-with)**。在你的 DSH 配置下执行：
 
 ```sh
-# 1. 安装到 DSH web profile
-dsh plugin --profile web add dsh-plugin-open-with
+# 安装到默认 profile
+dsh plugin add dsh-plugin-open-with
 
-# 2. 重启 web 宿主，让 bundle 重新解析 slot 注册
-dsh web restart
-#  或直接杀掉正在运行的 "dsh web" 进程再启动
+# 或仅安装到 Web profile
+dsh plugin --profile web add dsh-plugin-open-with
 ```
 
-下次刷新页面，会话头部动作栏就会出现胶囊按钮。
+安装后重启 `dsh web`，任意 Web 会话的头部操作区就能看到「Open ▾」胶囊拆分按钮。
 
-- 包页面：<https://www.npmjs.com/package/dsh-plugin-open-with>
-- 卸载：`dsh plugin --profile web remove dsh-plugin-open-with`
-
-### 从源码构建（仅贡献者 / 开发者）
-
-> **最终用户请使用上方的 npm 安装方式，不需要阅读本节。**
-
-前置条件：Node ^22.19 或 >= 24。构建依赖使用 `tsdown 0.6` + `rolldown 1.0.0-beta.7`，版本通过锁文件锁定。
+### 方式二：从仓库安装（开发 / 调试）<span lang="en">Install from repository (dev/debug)</span>
 
 ```sh
 git clone https://github.com/hyrinx/dsh-plugin-open-with.git
 cd dsh-plugin-open-with
 npm install
-npm run build      # 产出 lib/index.js + lib/client.js
+npm run build
+dsh plugin --profile web add link:$(pwd)
 ```
 
-构建完成后可通过本地路径临时加载到 profile（仅限开发者自行验证）：
-
-```sh
-dsh plugin --profile web add "$(pwd)"
-# 或 Windows PowerShell：
-# dsh plugin --profile web add D:\git\dsh-plugin-open-with
-```
-
-重启 `dsh web` 后生效。
-
-## 文件结构
-
-```
-open-with/
-├── README.md                  # 🌐 双语着陆页（GitHub + npm 默认渲染，即本文件）
-├── README.en-US.md            # 英文版 / English-only version
-├── README.zh.md               # 中文版 / Simplified Chinese version
-├── LICENSE                    # MIT 许可证正文（与 package.json 声明一致）
-├── PUBLISH.md                 # 发布到 npm 的操作手册（仅维护者需要）
-├── package.json               # 包名 "dsh-plugin-open-with"；声明 dsh.bundle + dsh.client manifest
-├── cordis.patch.yml           # 组合条目：id = "open-with"
-├── tsdown.config.ts           # 两次构建（宿主 ESM、浏览器 CJS + ModuleLoader 握手壳）
-├── tsconfig.json
-├── .gitignore                 # 包级忽略（lib/、src/assets.ts 等构建产物 / 生成文件）
-├── .gitattributes             # 换行规则 + linguist 语言统计提示
-├── assets/                    # 32×32 PNG 图标源文件（进 git，npm 包不发）
-│   ├── vscode.png             #   从 Code.exe 提取
-│   ├── cmd.png                #   从 cmd.exe 提取（兼作终端图标）
-│   └── explorer.png           #   从 explorer.exe 提取
-├── script/                    # 构建期脚本（不发布到 npm）
-│   ├── extract-icons.ps1      #   PowerShell：从本机 .exe 重新提取 PNG
-│   └── assets-to-base64.mjs   #   Node：把 PNG 写成 src/assets.ts 的 base64 导出
-├── src/                       # 源代码（TypeScript，编译产物输出到同级 lib/）
-│   ├── index.ts               # Host：RPC handler + 多目标启动分派
-│   ├── logger.ts              # 按日轮转日志 + 终端镜像
-│   ├── invariant.ts           # 安全说明（loopback 权限围栏）
-│   ├── assets.ts              # 🤖 由 script/assets-to-base64.mjs 自动生成
-│   │                          #   （.gitignore 忽略，通过 npm run assets 重建）
-│   └── client/
-│       ├── index.ts           # Browser：slot 注册 + locale 命名空间
-│       ├── OpenVscodeButton.tsx  # React 胶囊拆分按钮
-│       └── locales.ts         # 中英双语词典
-└── lib/                       # 🔨 tsdown 构建产物（由 npm `files` 白名单分发；
-                                 #   .gitignore 忽略，不进 git 仓库）。内容：
-                                 #   ├── index.js    (宿主 ESM 包 ← src/index.ts)
-                                 #   ├── index.d.ts  (TypeScript 类型声明)
-                                 #   ├── client.js   (浏览器 CJS 包 ← src/client/index.ts
-                                 #   │                 带 ModuleLoader 握手壳)
-                                 #   └── client.d.ts
-```
-
-## 扩展新的启动器
-
-新增一个启动器只需五小步：
-
-1. 在 `src/index.ts` 的 `LaunchTarget` 联合类型里追加第四种（例如 `'idea'`、`'typora'` …）。
-2. 在 `buildSpawnSpec()` 里追加对应分支，组装 argv。
-3. 在 `src/client/locales.ts` 的 `en` 和 `zh` 两个词典里新增 `target.<名称>` 文案。
-4. 在 `src/client/OpenVscodeButton.tsx` 的 `TARGETS` 有序数组末尾追加目标名，并在 `TARGET_META` 中补一个 14px 单色 SVG 图标。
-5. 运行 `npm run build`，然后 `dsh plugin --profile web remove … add …` 刷新 profile 依赖。
-
-## 贡献指南
-
-- Bug 与功能需求请提 issue：[https://github.com/hyrinx/dsh-plugin-open-with/issues](https://github.com/hyrinx/dsh-plugin-open-with/issues)
-- 新增启动器请参考上方「扩展新的启动器」五步法
-- 提交信息遵循 [Conventional Commits 1.0](https://www.conventionalcommits.org/zh-hans/v1.0.0/) 格式
-  （`feat:` / `fix:` / `docs:` / `chore:` / `refactor:` / `test:`）
+重启 `dsh web` 生效。后续改源码只要重新 `npm run build` + 刷新浏览器（改 cordis.patch.yml 需重启 `dsh web`）。本地源码安装模式下日志写在 `<项目根>/logs/host-YYYY-MM-DD.log`，npm 安装模式下写在 `~/.dsh/logs/dsh-plugin-open-with/host-YYYY-MM-DD.log`。
 
 ---
 
-</details>
+## 🔒 安全模型 <a name="security-model"></a> <span lang="en">Security Model</span>
 
-<!-- ============================================================ -->
+本插件会在 DSH 宿主端启动外部程序，因此依赖 DSH 核心层的三道围栏 + 自身一层枚举保护：
 
-<!-- 🇺🇸 English version · 默认折叠 / closed by default -->
+1. **Loopback 通道**：`/open-with` RPC handler 以 `authority: 'loopback'` 注册，DSH 网关只允许来自本机回环传输的请求，远程浏览器的调用在接入层即被拒绝，不会进入 launch 逻辑。
+2. **封闭枚举 target**：`LaunchTarget` 是 `'code' | 'cmd' | 'explorer'` 三选一的 TypeScript closed union，`buildSpawnSpec()` 用 switch 逐分支写死 argv；`apply()` 里还有 `target === 'cmd' || target === 'explorer' ? target : 'code'` 的二次归一化——非法字符串永远不会进入可执行文件名。
+3. **可执行名无路径分隔符**：`ctx.subprocess.resolveExecutable('code')` 在 master 实现里会拒绝含有路径分隔符或 `.`/`..` 的名字，保证只查 PATH，不会跳到任意路径。
+4. **spawn 模式混合**：VS Code 与 Explorer 分支以非 shell 方式 spawn（VS Code 在 Windows 仍需 `cmd /c` 包裹 `.CMD` 路径，但整条 argv 是按数组传的，唯一可变字段 `cwd` 只进数组尾部；Explorer 直接传 argv 数组）。终端 Windows 分支因 `start` 的标题参数需要命令行脚本文本，确实拼了一次字符串，但只包含可执行路径标题 + `cd /d` 目标目录；目标目录在拼装前对空格做了双引号封装、对 PowerShell 分支做了单引号 `''` 转义。若需要更严格的限制，建议在扩展启动器时统一走非 shell spawn + argv 数组。
+5. **工作区路径来自会话 snapshot**：浏览器端 `getCwd()` 通过 `ctx.sessions.list.getSnapshot().byId[sessionId].cwd` 读取，不接受任何 URL 参数 / localStorage 字符串路径；若会话不在列表中，launch 根本不会发起。
 
-<!-- ============================================================ -->
-
-<details>
-<summary>
- 
-<strong>🇺🇸 English full text</strong>
- 
-<sup><em>点我展开 / Click to expand</em></sup>
-</summary>
+> 💡 远程访问 DSH Web（非本机）的用户希望"点一下打开我这台电脑的 VS Code"的需求**不属于本插件能力范围**：浏览器并不运行在想打开 VS Code 的那台主机上，RPC/Node spawn 永远是作用于 DSH 宿主端。这种需求需要把 DSH 部署在目标本机，或另行实现客户端侧 Native Messaging / 本地小助手的桥。
 
 ---
 
-## What it does
+## 🚧 已知限制 <a name="known-limitations"></a> <span lang="en">Known Limitations</span>
 
-- **Left button** — launches the last remembered target at the workspace
-  directory of the current session. Icon follows the target (VS Code
-  stroke icon / terminal glyph / folder glyph).
-- **Right chevron** — a glass-style dropdown that both switches the
-  remembered target *and* immediately launches it as a single gesture
-  (Trae Work UX). The three built-in targets are:
-  - `code` — Visual Studio Code desktop via the `code` CLI shim
-  - `cmd`  — an interactive shell at the workspace (platform-aware:
-    `cmd.exe /K cd /d <cwd>` on Windows; `zsh -i` / `bash -i` / `sh -i`
-    on macOS / Linux following `$SHELL`)
-  - `explorer` — OS file manager at the workspace (`explorer.exe` on
-    Windows, `/usr/bin/open` on macOS, `xdg-open` on Linux)
-- **RPC tunnel** — the host side registers a loopback-only authority
-  endpoint `/open-with` with two verbs `launch` and `log`; the client
-  side forwards its own log lines through `log` so a single rotated log
-  under `~/.dsh/logs/dsh-plugin-open-with/` captures both halves of the
-  plugin.
-- **Cross-platform home paths** — log dirs resolve through the same
-  precedence as `@deepseek-ai/dsh-home-paths` (override → `$DSH_HOME` →
-  `~/.dsh`), so daemons, systemd units and containers can redirect
-  logs via the standard env var.
-- **Security** — `resolveExecutable` rejects path separators in the
-  `code`/`cmd`/`explorer` lookup; spawn invocations inherit the
-  subprocess service's scrubbed environment, never the raw host env.
+- **npm 分发目前仅限 Windows**：`package.json` 的 `os` 字段声明为 `["win32"]`。尽管宿主源码里 `shellExecutable()` / `fileManagerLauncher()` 已写好 macOS / Linux 分支，但只在 Windows 上验证过，若你要支持其他平台需自行改 `os` 字段并测试。
+- **必须通过本机浏览器回环访问**（`localhost` / `127.0.0.1`）：否则 DSH 网关按 `loopback` 权限规则直接拒掉 RPC。不要指望远程访问的浏览器能打开本地 IDE。
+- **VS Code 需要先把 `code` 命令加入 PATH**：宿主端 `resolveExecutable('code')` 找不到时 launch 会失败；错误日志里附带两条修复指引（VS Code 命令面板 `Shell Command: Install 'code' command in PATH` 或把 `%USERPROFILE%\AppData\Local\Programs\Microsoft VS Code\bin` 加到 PATH）。目前没有 code → code-insiders → 注册表的多级 fallback 链。
+- **终端默认选择与 README 描述一致**：Windows 下只开 `cmd.exe` 新窗口，没有 Windows Terminal (`wt`) / PowerShell 7 (`pwsh`) 的优先级回退；要换默认 shell 请改 `src/index.ts` 的 `shellExecutable()` 并重新 build。
+- **长路径 / UNC 路径 / 空格路径**：对 cmd 的 `innerCommands` 做了双引号或单引号转义，Explorer 传 argv 数组不受空格影响；但极长路径（> 260 字符）与 UNC 网络路径在某些 Windows Terminal profile / 老版 cmd 下仍可能失败，此时看宿主日志中的退出码与 stderr。
+- **依赖 `conversation.session.header.actions` 插槽**：由 `@deepseek-ai/dsh-client-ui-conversation` 提供。这个 slot 缺失时按钮不会被渲染，但插件不会让 DSH 崩溃（inject 是声明式的，cordis 缺依赖时直接跳过 apply）。
+- **按钮不展示「正在打开 / 已打开 / 失败」的视觉反馈**：字典里定义了 `launching` / `opened` / `failed` 三个 i18n key，但当前版本没有把这些状态接入 React render，点击后的诊断只在宿主日志和浏览器控制台里可见。
 
-## Architecture
+---
 
-```
-Browser (React)                                 Host (Node)
-┌──────────────────────────────┐               ┌──────────────────────────────┐
-│ OpenWithButton               │  RPC /open-with│ buildSpawnSpec(target)       │
-│  ├─ action half: launch last │ ─────────────→│ resolveExecutable('code')    │
-│  └─ picker: switch + launch  │    launch/log │ spawn(cmd / explorer / code) │
-│ slots: header.actions slot   │               │ logger → ~/.dsh/logs/...     │
-└──────────────────────────────┘               └──────────────────────────────┘
-```
-
-## Supported platforms
-
-| OS                            | Status         | Notes                                                                            |
-| ----------------------------- | -------------- | -------------------------------------------------------------------------------- |
-| **Windows 10 / 11 x64** | ✅ Primary     | `code`, `cmd`, `explorer.exe` natively supported                           |
-| macOS (any arch)              | ⚠️ Community | `code` + `$SHELL` + `/usr/bin/open`; no dedicated terminal title bar setup |
-| Linux (any distro)            | ⚠️ Community | `code` + `$SHELL` + `xdg-open`                                             |
-
-Minimum host engine: **DSH `>= 0.1.1-rc.1`** (declared in
-`package.json → dsh.engines.dsh`). Minimum Node runtime: `^22.19 || >=24`
-(matches `package.json → engines.node`).
-
-## Installation
-
-### From npm (end-users, only recommended way)
-
-This plugin is published to npm. **Install by package name directly — no clone, no local path linking needed**:
+## 🏗 构建与扩展 <a name="build-and-extend"></a> <span lang="en">Build & Extend</span>
 
 ```sh
-# 1. Install globally into the DSH web profile.
-dsh plugin --profile web add dsh-plugin-open-with
-
-# 2. Restart the web shell so the bundle re-resolves slot registrations.
-dsh web restart
-#  or kill the running "dsh web" process and launch again.
-```
-
-The capsule button appears in the session header action bar on the next page refresh.
-
-- Package page: <https://www.npmjs.com/package/dsh-plugin-open-with>
-- To uninstall: `dsh plugin --profile web remove dsh-plugin-open-with`
-
-### From source (contributors / developers only)
-
-> **End-users: use the npm install method above — skip this section.**
-
-Prerequisites: Node ^22.19 or >=24. Build deps need `tsdown 0.6` +
-`rolldown 1.0.0-beta.7` — pinned automatically by the package lock.
-
-```sh
-git clone https://github.com/hyrinx/dsh-plugin-open-with.git
-cd dsh-plugin-open-with
 npm install
-npm run build      # produces lib/index.js + lib/client.js
+npm run assets      # 自动提取系统可执行文件的图标并 base64 注入 src/assets.ts（由 script/assets-to-base64.mjs 驱动）
+npm run build       # tsdown 产出 lib/ 主/客两端 bundle + lib/types/*.d.ts
+npm run typecheck   # tsc -p tsconfig.json --noEmit
+npm pack            # 发布前预览 tarball 内容（强烈建议每次 publish 前跑）
+npm publish --access public
 ```
 
-After building, you can temporarily load the local folder into a profile (for developer testing only):
+**如何新增一个启动器（需改本插件源码）**：
+
+1. 宿主端 `src/index.ts`：`LaunchTarget` 枚举里加一个新 id，`buildSpawnSpec()` switch 里加对应 `case`，返回 `{ argv: string[], useSpawnCwd: boolean }`。
+2. 浏览器端 `src/client/OpenVscodeButton.tsx`：`TARGETS` 数组加新 id，`TARGET_META` 里加图标组件与 labelKey。
+3. 浏览器端 `src/client/locales.ts`：`OpenWithKey` interface 加新的 `target.<id>` key，并在 `en` / `zh` 字典里各写一行。
+4. `npm run build` + `npm run typecheck` 通过后即可提 PR。
+
+---
+
+## 🤝 贡献 <a name="contributing"></a> <span lang="en">Contributing</span>
+
+欢迎以下方向的 PR：
+
+- macOS / Linux 实机验证 + `package.json` 放宽 `os` 字段
+- 把默认启动器「code」改为可配置（需要引入 DSH 设置命名空间）
+- 更多 IDE 启动器（JetBrains 全家桶、Sublime Text、Neovide……）
+- 更多终端候选（Windows Terminal、pwsh、Git Bash、Alacritty、WezTerm……）
+- 启动器位置可配置
+
+提 PR 前请确保：
 
 ```sh
-dsh plugin --profile web add "$(pwd)"
-# or, on Windows PowerShell:
-# dsh plugin --profile web add D:\git\dsh-plugin-open-with
+npm run typecheck   # 通过
+npm run build       # 通过
+npm pack            # 无 WARN / error
 ```
 
-Restart `dsh web`; the capsule button appears in the session header action bar.
-
-## File layout
-
-```
-open-with/
-├── README.md                  # 🌐 Bilingual landing page (default for GitHub + npm — this file)
-├── README.en-US.md            # English-only version
-├── README.zh.md               # 中文版 / Simplified Chinese version
-├── LICENSE                    # MIT license text (matches package.json)
-├── PUBLISH.md                 # npm publish runbook (maintainer only)
-├── package.json               # "dsh-plugin-open-with"; dsh.bundle + dsh.client manifest
-├── cordis.patch.yml           # composition entry: id = "open-with"
-├── tsdown.config.ts           # two builds (host ESM + client CJS with
-│                              #  the ModuleLoader handshake wrapper)
-├── tsconfig.json
-├── .gitignore                 # package-level ignore (lib/, src/assets.ts, …)
-├── .gitattributes             # LF/CRLF rules, linguist language stats hints
-├── assets/                    # Source-of-truth 32×32 PNG icons (committed)
-│   ├── vscode.png             #   extracted from Code.exe
-│   ├── cmd.png                #   extracted from cmd.exe (shared terminal icon)
-│   └── explorer.png           #   extracted from explorer.exe
-├── script/                    # Build-time tooling (NOT published to npm)
-│   ├── extract-icons.ps1      #   PowerShell: re-extract PNGs from system .exe
-│   └── assets-to-base64.mjs   #   Node: write src/assets.ts base64 exports
-├── src/                       # Source code (TypeScript → compiled into lib/)
-│   ├── index.ts               # Host: RPC handler + launcher dispatch
-│   ├── logger.ts              # Rotated file log (per-day) + console mirror
-│   ├── invariant.ts           # Security notes (loopback authority gate)
-│   ├── assets.ts              # 🤖 AUTO-GENERATED by script/assets-to-base64.mjs
-│   │                          #   (ignored by git — rebuild via npm run assets)
-│   └── client/
-│       ├── index.ts           # Browser: slot registration + locale NS
-│       ├── OpenVscodeButton.tsx  # React capsule split-button
-│       └── locales.ts         # i18n dictionaries (en + zh)
-└── lib/                       # 🔨 tsdown build output — published via npm `files`
-                                 #   whitelist; ignored by git (see .gitignore).
-                                 #   Contents:
-                                 #   ├── index.js   (host ESM bundle   ← src/index.ts)
-                                 #   ├── index.d.ts (TypeScript declarations)
-                                 #   ├── client.js  (browser CJS bundle ← src/client/index.ts
-                                 #   │               wrapped with ModuleLoader handshake)
-                                 #   └── client.d.ts
-```
-
-## Extending to more launchers
-
-Add a new launcher in five small steps:
-
-1. Add a fourth union member to `LaunchTarget` in
-   `src/index.ts` (`'code' | 'cmd' | 'explorer' | 'idea' | …`).
-2. Add the argv-building branch to `buildSpawnSpec()`.
-3. Register a new i18n label key `target.<name>` under both `en` and
-   `zh` dictionaries in `src/client/locales.ts`.
-4. Append the new target to the `TARGETS` ordered array and to
-   `TARGET_META` (supply a 14px monochrome SVG icon) in
-   `src/client/OpenVscodeButton.tsx`.
-5. Run `npm run build` and `dsh plugin --profile web remove … add …` to
-   refresh the profile bundle.
-
-## Contributing
-
-- Report bugs and request features at
-  [https://github.com/hyrinx/dsh-plugin-open-with/issues](https://github.com/hyrinx/dsh-plugin-open-with/issues).
-- Follow the five-step guide under [*Extending to more launchers*](#extending-to-more-launchers-english)
-  for adding targets.
-- Commit messages use the
-  [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/)
-  format (`feat:` / `fix:` / `docs:` / `chore:` / `refactor:` / `test:`).
+Bug 报告请附带：DSH 版本、本插件版本、Node 版本、你的工作区路径样本（可脱敏），以及日志目录里当天的 `host-YYYY-MM-DD.log` 脱敏片段（本地源码安装在 `<项目>/logs/`，npm 安装在 `~/.dsh/logs/dsh-plugin-open-with/`）。
 
 ---
 
-</details>
+## 📜 License <a name="license"></a> <span lang="en">License</span>
 
----
-
-## License · 许可证
-
-**[MIT](LICENSE)** © 2026 [hyrinx](https://github.com/hyrinx) &lt;xhy_23@qq.com&gt;
-
-> Code: MIT. Documentation (README variants): CC-BY-4.0 — feel free to
-> translate or redistribute with attribution.
+MIT © [hyrinx](https://github.com/hyrinx)。详见 [LICENSE](LICENSE)。

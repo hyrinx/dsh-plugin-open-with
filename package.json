@@ -1,5 +1,6 @@
 {
   "name": "dsh-plugin-open-with",
+  "displayName": "Open With · 打开方式胶囊按钮",
   "description": "Capsule split-button in the dsh web conversation header: open the workspace in VS Code, terminal, or file explorer — extensible to more launchers.",
   "version": "0.1.1",
   "license": "MIT",

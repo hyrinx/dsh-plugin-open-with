@@ -1,17 +1,7 @@
 <div align="center">
 
-# dsh-plugin-open-with
-
-### DeepSeek Harness「打开方式」胶囊拆分按钮插件
-
-</div>
-
 <p align="center">
-  <a href="README.en-US.md">English</a>
-  ·
-  <a href="README.zh.md">简体中文</a>
-  ·
-  <strong>🌐 双语版 / Bilingual</strong>（当前页）
+  <strong>🌐 双语版 / Bilingual</strong> · 上方折叠区中文 / 下方折叠区 English
 </p>
 
 <p align="center">
@@ -24,7 +14,7 @@
   <a href="https://www.npmjs.com/package/dsh-plugin-open-with"><img alt="npm version" src="https://img.shields.io/npm/v/dsh-plugin-open-with?logo=npm&label=npm"></a>
   <a href="https://www.npmjs.com/package/dsh-plugin-open-with"><img alt="npm monthly downloads" src="https://img.shields.io/npm/dm/dsh-plugin-open-with?logo=npm&label=downloads&color=cb3837"></a>
   <a href="#supported-platforms--支持平台"><img alt="platform: Windows" src="https://img.shields.io/badge/platform-Windows-0078D4?logo=windows11&logoColor=white"></a>
-  <a href="#installation--安装"><img alt="DSH engine &gt;= 0.1.1-rc.1" src="https://img.shields.io/badge/dsh-%E2%89%A50.1.1--rc.1-7C3AED?labelColor=0F172A"></a>
+  <a href="#installation--安装"><img alt="DSH engine >= 0.1.1-rc.1" src="https://img.shields.io/badge/dsh-%E2%89%A50.1.1--rc.1-7C3AED?labelColor=0F172A"></a>
   <a href="LICENSE"><img alt="license: MIT" src="https://img.shields.io/github/license/hyrinx/dsh-plugin-open-with"></a>
   <a href="https://www.conventionalcommits.org/"><img alt="Conventional Commits" src="https://img.shields.io/badge/commits-Conventional-FE5196?logo=conventionalcommits&logoColor=white"></a>
   <a href="#installation--安装"><img alt="Open in DSH Web Profile" src="https://img.shields.io/badge/DSH-Add%20to%20Web%20Profile-111827?logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNCIgaGVpZ2h0PSIxNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjIuNSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cG9seWxpbmU9IjkgMTggMTUgMTIgOSA2Ij48L3N2Zz4="></a>
@@ -37,7 +27,7 @@
 </p>
 
 <p align="center">
-<strong>🇺🇸 TL;DR</strong>　A DSH bundle plugin adding a <strong>capsule split-button</strong> to the dsh web conversation header: launch VS Code, cmd/Windows Terminal &amp; File Explorer at the current workspace with one click (Windows only).
+<strong>🇺🇸 TL;DR</strong>　A DSH bundle plugin adding a <strong>capsule split-button</strong> to the dsh web conversation header: launch VS Code, cmd/Windows Terminal & File Explorer at the current workspace with one click (Windows only).
 </p>
 
 ---
@@ -49,13 +39,16 @@
 ---
 
 <!-- ============================================================ -->
+
 <!-- 🇨🇳 简体中文全文 · Simplified Chinese · 默认展开 / open by default -->
+
 <!-- ============================================================ -->
+
 <details open>
 <summary>
-&nbsp;
+ 
 <strong>🇨🇳 简体中文全文（默认展开）</strong>
-&nbsp;
+ 
 <sup><em>点我折叠 / Click to collapse</em></sup>
 </summary>
 
@@ -86,17 +79,19 @@
 
 ## 支持平台
 
-| 操作系统 | 状态 | 备注 |
-|---|---|---|
-| **Windows 10 / 11 x64** | ✅ 主支持 | 原生支持 `code`、`cmd`、`explorer.exe` |
-| macOS（任意架构） | ⚠️ 社区支持 | `code` + `$SHELL` + `/usr/bin/open`；未做终端标题栏特化 |
-| Linux（任意发行版） | ⚠️ 社区支持 | `code` + `$SHELL` + `xdg-open` |
+| 操作系统                      | 状态          | 备注                                                          |
+| ----------------------------- | ------------- | ------------------------------------------------------------- |
+| **Windows 10 / 11 x64** | ✅ 主支持     | 原生支持`code`、`cmd`、`explorer.exe`                   |
+| macOS（任意架构）             | ⚠️ 社区支持 | `code` + `$SHELL` + `/usr/bin/open`；未做终端标题栏特化 |
+| Linux（任意发行版）           | ⚠️ 社区支持 | `code` + `$SHELL` + `xdg-open`                          |
 
 最低宿主引擎版本：**DSH `>= 0.1.1-rc.1`**（声明于 `package.json → dsh.engines.dsh`）。最低 Node 运行时：`^22.19 || >=24`（`package.json → engines.node`）。
 
 ## 安装
 
-### 通过 npm 安装（最终用户，推荐）
+### 通过 npm 安装（最终用户，唯一推荐方式）
+
+本插件已发布到 npm，**直接通过包名安装，无需克隆源码或本地路径链接**：
 
 ```sh
 # 1. 安装到 DSH web profile
@@ -107,9 +102,14 @@ dsh web restart
 #  或直接杀掉正在运行的 "dsh web" 进程再启动
 ```
 
-下次刷新页面，会话头部动作栏就会出现胶囊按钮。卸载：`dsh plugin --profile web remove dsh-plugin-open-with`。
+下次刷新页面，会话头部动作栏就会出现胶囊按钮。
 
-### 从源码安装（贡献者 / 本地构建）
+- 包页面：<https://www.npmjs.com/package/dsh-plugin-open-with>
+- 卸载：`dsh plugin --profile web remove dsh-plugin-open-with`
+
+### 从源码构建（仅贡献者 / 开发者）
+
+> **最终用户请使用上方的 npm 安装方式，不需要阅读本节。**
 
 前置条件：Node ^22.19 或 >= 24。构建依赖使用 `tsdown 0.6` + `rolldown 1.0.0-beta.7`，版本通过锁文件锁定。
 
@@ -120,7 +120,7 @@ npm install
 npm run build      # 产出 lib/index.js + lib/client.js
 ```
 
-把本地构建的插件加入 web profile：
+构建完成后可通过本地路径临时加载到 profile（仅限开发者自行验证）：
 
 ```sh
 dsh plugin --profile web add "$(pwd)"
@@ -128,7 +128,7 @@ dsh plugin --profile web add "$(pwd)"
 # dsh plugin --profile web add D:\git\dsh-plugin-open-with
 ```
 
-重启 `dsh web` 后生效。发布到 npm 的完整步骤单独放在 [`PUBLISH.md`](PUBLISH.md) 操作手册里。
+重启 `dsh web` 后生效。
 
 ## 文件结构
 
@@ -183,27 +183,26 @@ open-with/
 
 ## 贡献指南
 
-- Bug 与功能需求请提 issue：<https://github.com/hyrinx/dsh-plugin-open-with/issues>
+- Bug 与功能需求请提 issue：[https://github.com/hyrinx/dsh-plugin-open-with/issues](https://github.com/hyrinx/dsh-plugin-open-with/issues)
 - 新增启动器请参考上方「扩展新的启动器」五步法
 - 提交信息遵循 [Conventional Commits 1.0](https://www.conventionalcommits.org/zh-hans/v1.0.0/) 格式
   （`feat:` / `fix:` / `docs:` / `chore:` / `refactor:` / `test:`）
-
-## 发布 / 上传到 npm
-
-详见 [`PUBLISH.md`](PUBLISH.md) 发布手册（发布前检查清单、`npm pack` 预览验证、beta 标签、撤回 / 废弃版本、常见错误速查）。
 
 ---
 
 </details>
 
 <!-- ============================================================ -->
+
 <!-- 🇺🇸 English version · 默认折叠 / closed by default -->
+
 <!-- ============================================================ -->
+
 <details>
 <summary>
-&nbsp;
+ 
 <strong>🇺🇸 English full text</strong>
-&nbsp;
+ 
 <sup><em>点我展开 / Click to expand</em></sup>
 </summary>
 
@@ -250,11 +249,11 @@ Browser (React)                                 Host (Node)
 
 ## Supported platforms
 
-| OS | Status | Notes |
-|---|---|---|
-| **Windows 10 / 11 x64** | ✅ Primary | `code`, `cmd`, `explorer.exe` natively supported |
-| macOS (any arch) | ⚠️ Community | `code` + `$SHELL` + `/usr/bin/open`; no dedicated terminal title bar setup |
-| Linux (any distro) | ⚠️ Community | `code` + `$SHELL` + `xdg-open` |
+| OS                            | Status         | Notes                                                                            |
+| ----------------------------- | -------------- | -------------------------------------------------------------------------------- |
+| **Windows 10 / 11 x64** | ✅ Primary     | `code`, `cmd`, `explorer.exe` natively supported                           |
+| macOS (any arch)              | ⚠️ Community | `code` + `$SHELL` + `/usr/bin/open`; no dedicated terminal title bar setup |
+| Linux (any distro)            | ⚠️ Community | `code` + `$SHELL` + `xdg-open`                                             |
 
 Minimum host engine: **DSH `>= 0.1.1-rc.1`** (declared in
 `package.json → dsh.engines.dsh`). Minimum Node runtime: `^22.19 || >=24`
@@ -262,7 +261,9 @@ Minimum host engine: **DSH `>= 0.1.1-rc.1`** (declared in
 
 ## Installation
 
-### From npm (end-users, recommended)
+### From npm (end-users, only recommended way)
+
+This plugin is published to npm. **Install by package name directly — no clone, no local path linking needed**:
 
 ```sh
 # 1. Install globally into the DSH web profile.
@@ -273,10 +274,14 @@ dsh web restart
 #  or kill the running "dsh web" process and launch again.
 ```
 
-The capsule button appears in the session header action bar on the
-next page refresh. To uninstall: `dsh plugin --profile web remove dsh-plugin-open-with`.
+The capsule button appears in the session header action bar on the next page refresh.
 
-### From source (contributor / development build)
+- Package page: <https://www.npmjs.com/package/dsh-plugin-open-with>
+- To uninstall: `dsh plugin --profile web remove dsh-plugin-open-with`
+
+### From source (contributors / developers only)
+
+> **End-users: use the npm install method above — skip this section.**
 
 Prerequisites: Node ^22.19 or >=24. Build deps need `tsdown 0.6` +
 `rolldown 1.0.0-beta.7` — pinned automatically by the package lock.
@@ -288,7 +293,7 @@ npm install
 npm run build      # produces lib/index.js + lib/client.js
 ```
 
-Register the local folder with the web profile:
+After building, you can temporarily load the local folder into a profile (for developer testing only):
 
 ```sh
 dsh plugin --profile web add "$(pwd)"
@@ -296,9 +301,7 @@ dsh plugin --profile web add "$(pwd)"
 # dsh plugin --profile web add D:\git\dsh-plugin-open-with
 ```
 
-Restart `dsh web`; the capsule button appears in the session header
-action bar. Publish-to-npm instructions are kept in a separate
-[`PUBLISH.md`](PUBLISH.md) runbook.
+Restart `dsh web`; the capsule button appears in the session header action bar.
 
 ## File layout
 
@@ -361,18 +364,12 @@ Add a new launcher in five small steps:
 ## Contributing
 
 - Report bugs and request features at
-  <https://github.com/hyrinx/dsh-plugin-open-with/issues>.
+  [https://github.com/hyrinx/dsh-plugin-open-with/issues](https://github.com/hyrinx/dsh-plugin-open-with/issues).
 - Follow the five-step guide under [*Extending to more launchers*](#extending-to-more-launchers-english)
   for adding targets.
 - Commit messages use the
   [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/)
   format (`feat:` / `fix:` / `docs:` / `chore:` / `refactor:` / `test:`).
-
-## Release / publish to npm
-
-See [`PUBLISH.md`](PUBLISH.md) for the step-by-step publish runbook
-(pre-publish checklist, `npm pack` verification, beta tags, unpublish /
-deprecate recovery, error cheat sheet).
 
 ---
 

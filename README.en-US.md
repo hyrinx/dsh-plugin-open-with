@@ -7,6 +7,7 @@
 > License: [MIT](LICENSE)
 
 [![npm version](https://img.shields.io/npm/v/dsh-plugin-open-with?logo=npm&label=npm)](https://www.npmjs.com/package/dsh-plugin-open-with)
+[![npm monthly downloads](https://img.shields.io/npm/dm/dsh-plugin-open-with?logo=npm&label=downloads&color=cb3837)](https://www.npmjs.com/package/dsh-plugin-open-with)
 [![npm: platform win32](https://img.shields.io/badge/platform-Windows-0078D4?logo=windows11&logoColor=white)](#supported-platforms)
 [![DSH engine](https://img.shields.io/badge/dsh-%E2%89%A50.1.1--rc.1-7C3AED?labelColor=0F172A)](#installation)
 [![license: MIT](https://img.shields.io/github/license/hyrinx/dsh-plugin-open-with)](LICENSE)

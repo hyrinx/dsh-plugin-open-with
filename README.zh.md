@@ -7,6 +7,7 @@
 > 许可证：[MIT](LICENSE)
 
 [![npm 版本](https://img.shields.io/npm/v/dsh-plugin-open-with?logo=npm&label=npm)](https://www.npmjs.com/package/dsh-plugin-open-with)
+[![npm 月下载量](https://img.shields.io/npm/dm/dsh-plugin-open-with?logo=npm&label=%E4%B8%8B%E8%BD%BD%E9%87%8F&color=cb3837)](https://www.npmjs.com/package/dsh-plugin-open-with)
 [![npm: 平台 win32](https://img.shields.io/badge/platform-Windows-0078D4?logo=windows11&logoColor=white)](#%E6%94%AF%E6%8C%81%E5%B9%B3%E5%8F%B0)
 [![DSH 宿主版本](https://img.shields.io/badge/dsh-%E2%89%A50.1.1--rc.1-7C3AED?labelColor=0F172A)](#%E5%AE%89%E8%A3%85)
 [![许可证: MIT](https://img.shields.io/github/license/hyrinx/dsh-plugin-open-with)](LICENSE)

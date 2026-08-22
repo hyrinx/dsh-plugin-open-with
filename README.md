@@ -22,6 +22,7 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/dsh-plugin-open-with"><img alt="npm version" src="https://img.shields.io/npm/v/dsh-plugin-open-with?logo=npm&label=npm"></a>
+  <a href="https://www.npmjs.com/package/dsh-plugin-open-with"><img alt="npm monthly downloads" src="https://img.shields.io/npm/dm/dsh-plugin-open-with?logo=npm&label=downloads&color=cb3837"></a>
   <a href="#supported-platforms--支持平台"><img alt="platform: Windows" src="https://img.shields.io/badge/platform-Windows-0078D4?logo=windows11&logoColor=white"></a>
   <a href="#installation--安装"><img alt="DSH engine &gt;= 0.1.1-rc.1" src="https://img.shields.io/badge/dsh-%E2%89%A50.1.1--rc.1-7C3AED?labelColor=0F172A"></a>
   <a href="LICENSE"><img alt="license: MIT" src="https://img.shields.io/github/license/hyrinx/dsh-plugin-open-with"></a>

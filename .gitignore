@@ -1,17 +1,19 @@
 # ── 依赖
 node_modules/
 
-# ── 构建产物（tsdown 输出）
-lib/
-dist/
-# ── 代码生成产物
-src/assets.ts
-
 # ── 包管理 & 本地缓存
 package-lock.json
 
-# TypeScript 增量编译缓存（tsconfig.json 的 "incremental" 打开时生成）。
+# ── 构建产物 / 生成代码
+dist/
+lib/
+src/assets.ts
 *.tsbuildinfo
 
-# ── 发布产物（本地验证使用）
+# ── 本地运行日志（仅本地开发模式下由 logger 生成；最终用户模式日志仍在 ~/.dsh）
+logs/
+*.log
+
+# ── npm 打包临时产物
 *.tgz
+.pkg_cache.json

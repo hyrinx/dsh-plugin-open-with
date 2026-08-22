@@ -45,7 +45,9 @@
     "lib",
     "cordis.patch.yml",
     "README.md",
-    "README.zh.md"
+    "README.zh.md",
+    "LICENSE",
+    "README.en-US.md"
   ],
   "keywords": [
     "deepseek-harness",
@@ -63,7 +65,7 @@
     "provenance": false
   },
   "engines": {
-    "node": "^22.19 || >=24"
+    "node": "^22.11 || >=24"
   },
   "os": [
     "win32"
@@ -79,14 +81,30 @@
     "react": "^18.2.0"
   },
   "peerDependenciesMeta": {
-    "@deepseek-ai/cordis": { "optional": true },
-    "@deepseek-ai/dsh-subprocess": { "optional": true },
-    "@deepseek-ai/dsh-client-connection": { "optional": true },
-    "@deepseek-ai/dsh-client-locale": { "optional": true },
-    "@deepseek-ai/dsh-client-runtime": { "optional": true },
-    "@deepseek-ai/dsh-client-ui-conversation": { "optional": true },
-    "@deepseek-ai/dsh-client-ui-slots": { "optional": true },
-    "react": { "optional": true }
+    "@deepseek-ai/cordis": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-subprocess": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-connection": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-locale": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-runtime": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-ui-conversation": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-ui-slots": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@types/node": "^22.19.0",
@@ -96,5 +114,21 @@
     "react-dom": "^18.2.0",
     "tsdown": "^0.6.0",
     "typescript": "^5.7.0"
-  }
+  },
+  "author": "hyrinx <xhy_23@qq.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hyrinx/dsh-plugin-open-with.git"
+  },
+  "homepage": "https://github.com/hyrinx/dsh-plugin-open-with#readme",
+  "bugs": {
+    "url": "https://github.com/hyrinx/dsh-plugin-open-with/issues",
+    "email": "xhy_23@qq.com"
+  },
+  "funding": [
+    {
+      "type": "github",
+      "url": "https://github.com/sponsors/hyrinx"
+    }
+  ]
 }

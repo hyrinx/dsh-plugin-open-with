@@ -3,6 +3,10 @@
 # an RPC handler that dispatches to code/cmd/explorer (and more later)
 # via the subprocess capability; the browser side injects the button
 # into conversation.session.header.actions.
+#
+# To add a new launcher, see README § "构建与扩展" — three files need
+# synchronized edits: src/index.ts buildSpawnSpec(), client/TARGETS +
+# TARGET_META, and src/client/locales.ts.
 
 - insert:
     - id: open-with

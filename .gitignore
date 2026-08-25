@@ -5,8 +5,8 @@ node_modules/
 package-lock.json
 
 # ── 构建产物 / 生成代码
-dist/
-lib/
+dsh-wallpaper-engine-main/
+deepseek-harness-master/
 src/assets.ts
 *.tsbuildinfo
 

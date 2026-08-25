@@ -1,22 +1,36 @@
 /**
- * Capsule-style "Open" split-button for the conversation session header.
+ * 胶囊拆分按钮：左侧直接启动当前项，右侧下拉菜单切换启动器。
  *
- * Left: launches the currently chosen target (default = VS Code).
- * Right: chevron opening a three-item popover (VS Code / Terminal / Folder).
+ * 下拉菜单展示内容 = 可见的预设项 + 可见的自定义项，
+ * 排序与设置页保持一致（预设项在前，自定义项在后）。
+ * 每次打开菜单时重新读取设置，确保所见即所得。
  */
-import { useCallback, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
 import { IconChevronDownOutline14, useDismissOnOutsidePointer } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { InjectFace } from '@deepseek-ai/dsh-client-ui-slots'
 import type { RpcResult } from '@deepseek-ai/dsh-host-apiproxy/api'
-import { vscodePngDataUrl, terminalPngDataUrl, folderPngDataUrl } from '../assets.js'
 
-type LaunchTarget = 'code' | 'cmd' | 'explorer'
+type LaunchTarget = 'code' | 'cmd' | 'explorer' | 'powershell'
+
+/** 胶囊菜单中的一项（预设或自定义）。 */
+export interface CapsuleItem {
+  id: string
+  name: string
+  icon: string
+  /** 预设项才有 target */
+  target?: LaunchTarget
+  preset: boolean
+}
 
 export interface OpenWithInjected {
-  launch: (cwd: string, target?: LaunchTarget) => Promise<RpcResult<unknown>>
+  launch: (cwd: string, target?: string) => Promise<RpcResult<unknown>>
   getCwd: (sessionId: string) => string | undefined
   log: (level: 'info' | 'warn' | 'error', message: string, extra?: unknown) => void
+  /** 从 host 端读取隐藏的预设项 id 列表。 */
+  readHiddenIds: () => Promise<string[]>
+  /** 从 host 端读取全部设置，用于获取自定义项。 */
+  readCapsuleItems: () => Promise<CapsuleItem[]>
 }
 
 export type OpenWithButtonProps =
@@ -24,11 +38,14 @@ export type OpenWithButtonProps =
   & PropsLocale<'openWith'>
   & InjectFace<OpenWithInjected>
 
+/** 默认图标（DSH logo），用于图标提取完成前的回退。 */
+const fallbackIcon = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAKDSURBVFhH7ZZJyI1xFMZ/yJQpMmRhDkkplCglWSAiUaadDSVDlI2FhZAyFAsbCSkiYqGQDBEbU4ayMC1E5qnMUw/nvY7j3O/e78PuPnW63TM9533P//zPCzXU8H/QEhgXlQ1FE6At0ML+K/kMYB9wF7gCdAoxc4A7Ftsg9Ac2AteA98AX4DPwBHgFfHMyJgYD28y2C+gajYbewLSoVMVrjcyT1CUjYxJgj7O/AcaavjMwHJgF3Ad2+yCR708IKsljYKJPBKwOPjeB9cCnoF/ug1YmyasVtWixyzUs8YmiGLX6BwYAHxOn+shXYJkrYnvi42WD8y0dmr8VFbHAcjYHdiQ+asMaPyFN3cl+av16lgRWKypihRGMcPpbwDygx6/n/onB5nAKaGw6/fa1vl5PSCKh7oJY9AXgiPt/OPCWMMUczkSDQcXo4nmQkEtuA4PssqprirbExAWmm8NDoFE0OnQEjieJP9iB0+2ndp5NfCRzY8IC451Tz2gMaAYcSJLr7Swyn35lJmpgyFWCZrFwWhiNCbQTziUE6rnekt7CxWBTm8pCPS4O0NUKbSjQDXieFPEWeJHoNRV1YqdznhyNZTA7IcrkdbIt/4AWShGgeW0VHRLoTR1KCKMsjYHl4GdWW6q4EwpofS4B2jldF5ueSFrI0fp8E/QJu36rHagCQ0wvQt+mUTaKkfwG0N75VYVJYWWeBno5+wnT6/bbbGMpzExW7TFgdJWH+jcomX+id8BBu8leBpLzwFAjmVBmAi4B3SNJJehQ3kuSlZNHtjP0CbbOCtM3oRbbXqBDJKgGbYBVyVNnogLmJwf3n6C1LSO14CRw2W46Tc0mYKr7Yq6hhnrjO8xVal7nQeXKAAAAAElFTkSuQmCC'
+
 /** Renders a data-URL PNG icon at a given size. */
 function PngIcon({ src, size = 14 }: { src: string; size?: number }) {
   return (
     <img
-      src={src}
+      src={src || fallbackIcon}
       alt=""
       aria-hidden="true"
       width={size}
@@ -45,26 +62,8 @@ function PngIcon({ src, size = 14 }: { src: string; size?: number }) {
   )
 }
 
-function VscodeIcon({ size = 14 }: { size?: number }) {
-  return <PngIcon src={vscodePngDataUrl} size={size} />
-}
-function TerminalIcon({ size = 14 }: { size?: number }) {
-  return <PngIcon src={terminalPngDataUrl} size={size} />
-}
-function FolderIcon({ size = 14 }: { size?: number }) {
-  return <PngIcon src={folderPngDataUrl} size={size} />
-}
-
-const TARGETS: readonly LaunchTarget[] = ['code', 'cmd', 'explorer'] as const
-
-const TARGET_META: Record<LaunchTarget, { icon: (size: number) => JSX.Element; labelKey: `target.${LaunchTarget}` }> = {
-  code: { icon: (s) => <VscodeIcon size={s} />, labelKey: 'target.code' },
-  cmd: { icon: (s) => <TerminalIcon size={s} />, labelKey: 'target.cmd' },
-  explorer: { icon: (s) => <FolderIcon size={s} />, labelKey: 'target.explorer' },
-}
-
 function useLaunchFlow(
-  target: LaunchTarget,
+  target: string,
   sessionId: string,
   launch: OpenWithInjected['launch'],
   getCwd: OpenWithInjected['getCwd'],
@@ -94,20 +93,33 @@ function useLaunchFlow(
  * bottom-right of the picker half.
  */
 export function OpenWithButton({
-  sessionId, launch, getCwd, log, t,
+  sessionId, launch, getCwd, log, readHiddenIds, readCapsuleItems, t,
 }: OpenWithButtonProps) {
-  const [target, setTarget] = useState<LaunchTarget>('code')
+  const [target, setTarget] = useState<string>('code')
   const [open, setOpen] = useState(false)
+  const [hiddenIds, setHiddenIds] = useState<string[]>([])
+  const [capsuleItems, setCapsuleItems] = useState<CapsuleItem[]>([])
   const rootRef = useRef<HTMLDivElement>(null)
   const pickerRef = useRef<HTMLButtonElement>(null)
   useDismissOnOutsidePointer(rootRef, open, setOpen)
 
+  // 挂载时异步加载胶囊项列表和隐藏列表
+  useEffect(() => {
+    readCapsuleItems().then((items) => {
+      setCapsuleItems(items)
+      if (items.length > 0 && !items.find((it) => it.id === target)) {
+        setTarget(items[0].id)
+      }
+    }).catch(() => {})
+    readHiddenIds().then(setHiddenIds).catch(() => {})
+  }, [readHiddenIds, readCapsuleItems])
+
   const { run } = useLaunchFlow(target, sessionId, launch, getCwd, log)
 
-  const labelKey = `target.${target}` as 'target.code'
-  const label = t(labelKey)
+  const currentItem = capsuleItems.find((it) => it.id === target)
+  const label = currentItem?.name ?? t('target.code')
   const title = t('tooltip')
-  const currentIcon = TARGET_META[target].icon(14)
+  const currentIcon = <PngIcon src={currentItem?.icon ?? ''} size={14} />
 
   const onRootKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
     if (event.key === 'Escape' && open) {
@@ -123,10 +135,18 @@ export function OpenWithButton({
   }
 
   const onPickerClick = (_ev: MouseEvent<HTMLButtonElement>): void => {
-    setOpen((o) => !o)
+    const willOpen = !open
+    setOpen(willOpen)
+    if (willOpen) {
+      // 每次打开下拉菜单时重新读取设置，确保排序和可见性所见即所得
+      readCapsuleItems().then((items) => {
+        setCapsuleItems(items)
+      }).catch(() => {})
+      readHiddenIds().then(setHiddenIds).catch(() => {})
+    }
   }
 
-  const selectTarget = (next: LaunchTarget): void => {
+  const selectTarget = (next: string): void => {
     setTarget(next)
     setOpen(false)
     const cwd = getCwd(sessionId)
@@ -135,14 +155,15 @@ export function OpenWithButton({
       return
     }
     log('info', 'picker selected launch', { sessionId, target: next, cwd })
-    void launch(cwd, next).then((result) => {
+    void launch(cwd, next).then((result: RpcResult<unknown>) => {
       if (result.ok) log('info', 'RPC result', result)
       else log('warn', 'RPC returned error', result)
-    }).catch((err) => {
+    }).catch((err: unknown) => {
       log('error', 'picker launch failed', err)
     })
   }
 
+  const visibleItems = capsuleItems.filter((it) => !hiddenIds.includes(it.id))
   const hoverVar = 'var(--dsw-hover, rgba(0,0,0,0.05))'
   const borderVar = 'var(--dsw-border-strong, rgba(0,0,0,0.12))'
   const textVar = 'var(--dsw-fg, inherit)'
@@ -257,14 +278,14 @@ export function OpenWithButton({
             zIndex: 100,
           }}
         >
-          {TARGETS.map((option) => {
-            const { icon, labelKey } = TARGET_META[option]
+          {visibleItems.map((item) => {
+            const icon = <PngIcon src={item.icon ?? ''} size={14} />
             return (
               <button
-                key={option}
+                key={item.id}
                 role="menuitem"
                 type="button"
-                onClick={() => selectTarget(option)}
+                onClick={() => selectTarget(item.id)}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -277,13 +298,13 @@ export function OpenWithButton({
                   cursor: 'pointer',
                   fontSize: '13px',
                   borderRadius: '6px',
-                  fontWeight: target === option ? 600 : 400,
+                  fontWeight: target === item.id ? 600 : 400,
                 }}
                 onMouseEnter={(e) => { e.currentTarget.style.background = hoverVar }}
                 onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
               >
-                {icon(14)}
-                <span>{t(labelKey)}</span>
+                {icon}
+                <span>{item.name}</span>
               </button>
             )
           })}

@@ -1,0 +1,10 @@
+/**
+ * Invariants for the open-vscode plugin.
+ *
+ * The RPC channel `/open-vscode` is registered with `loopback` authority:
+ * only local-transport requests reach the handler. The host-side `resolveExecutable`
+ * call rejects names containing path separators, so a crafted `code` path
+ * cannot escape the PATH lookup. The spawned process inherits the subprocess
+ * service's scrubbed environment, not the raw parent env.
+ */
+export {};

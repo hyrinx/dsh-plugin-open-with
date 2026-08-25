@@ -2,7 +2,7 @@
   "name": "dsh-plugin-open-with",
   "displayName": "Open With · 打开方式胶囊按钮",
   "description": "Capsule split-button in the dsh web conversation header: open the workspace in VS Code, terminal, or file explorer — extensible to more launchers.",
-  "version": "0.1.1",
+  "version": "1.0.0",
   "license": "MIT",
   "type": "module",
   "main": "lib/index.js",
@@ -37,8 +37,7 @@
     }
   },
   "scripts": {
-    "assets": "node script/assets-to-base64.mjs",
-    "build": "npm run assets && tsdown",
+    "build": "tsdown",
     "prepack": "npm run build",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
@@ -76,7 +75,9 @@
     "@deepseek-ai/dsh-client-locale": "*",
     "@deepseek-ai/dsh-client-runtime": "*",
     "@deepseek-ai/dsh-client-ui-conversation": "*",
+    "@deepseek-ai/dsh-client-ui-primitives": "*",
     "@deepseek-ai/dsh-client-ui-slots": "*",
+    "@deepseek-ai/dsh-host-apiproxy": "*",
     "react": "^18.2.0"
   },
   "peerDependenciesMeta": {
@@ -98,7 +99,13 @@
     "@deepseek-ai/dsh-client-ui-conversation": {
       "optional": true
     },
+    "@deepseek-ai/dsh-client-ui-primitives": {
+      "optional": true
+    },
     "@deepseek-ai/dsh-client-ui-slots": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-host-apiproxy": {
       "optional": true
     },
     "react": {

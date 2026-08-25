@@ -27,6 +27,8 @@
 
 ![胶囊拆分按钮效果图](https://github.com/hyrinx/dsh-plugin-open-with/raw/main/assets/screenshot-1.png)
 
+![设置页面效果图](https://github.com/hyrinx/dsh-plugin-open-with/raw/main/assets/screenshot-2.png)
+
 ## 🧩 功能
 
 - 💊 **胶囊拆分按钮**：左半边执行当前选择的启动器；右半边下拉菜单列出全部启动器，点击即切换并立即启动。

@@ -36,8 +36,19 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'open-with: dictionaries')
 
   // 1. 注入对话头部胶囊按钮
+  // NOTE: inject target must equal the registered slot name itself
+  // (`conversation.session.header.actions`), not its parent
+  // (`conversation.session.header`). DSH's slot system only runs the
+  // registration callback when the injected slot actually renders, and
+  // `slots.register(name)` requires that slot's declaration to already
+  // exist in the registry — registering a child slot from a parent-level
+  // inject races the declaration and throws
+  // `slot "conversation.session.header.actions" is not declared
+  // (a parent entry's children table must declare it)`. This mirrors how
+  // the first-party `@deepseek-ai/dsh-client-ui-jobs` plugin contributes
+  // its header action. See https://github.com/anywhere-labs/dsh-desktop
   ctx.effect(
-    () => ctx.slots.inject('conversation.session.header', () => ctx.slots.register(
+    () => ctx.slots.inject('conversation.session.header.actions', () => ctx.slots.register(
       {
         name: 'conversation.session.header.actions',
         id: 'open-with',

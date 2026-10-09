@@ -14,6 +14,7 @@ import {
   useEffect,
   useRef,
   useState,
+  type CSSProperties,
   type DragEvent,
   type KeyboardEvent,
 } from 'react'
@@ -30,6 +31,12 @@ import {
   type Placement,
 } from '../shared.ts'
 import { ItemIcon } from './ItemIcon.tsx'
+import {
+  BG_BRAND_WASH, BG_HOVER, BG_INPUT, BG_RAISED, BORDER_FOCUS, BORDER_INPUT,
+  BORDER_LINE, BRAND, BRAND_FILL, DANGER, ELEVATION_SOFT, LINE, OUTLINE_BUTTON,
+  OUTLINE_INPUT, RADIUS_MD, RADIUS_SM, RADIUS_XS, TEXT, TEXT_ON_BRAND,
+  TEXT_SECONDARY, TEXT_TERTIARY,
+} from './tokens.ts'
 
 // ── 注入接口 ─────────────────────────────────────────────────────────────────
 
@@ -53,6 +60,38 @@ const PLACEMENT_OPTIONS: readonly { value: Placement; labelKey: string }[] = [
   { value: 'actions', labelKey: 'settings.placement.actions' },
   { value: 'utilities', labelKey: 'settings.placement.utilities' },
 ]
+
+// ── 统一规格 ─────────────────────────────────────────────────────────────────
+
+/** 节标题与字段标签共用一套：照官方 settings-form 的 `.label`（13px / 500 / 1.5 / 主文字色）。 */
+const FIELD_LABEL: CSSProperties = {
+  fontSize: '13px', fontWeight: 500, lineHeight: 1.5, color: TEXT,
+}
+
+/** 字段块：标签在上、控件在下；块内间距照官方 settings-form 的 `.field`（gap 6px）。 */
+const FIELD_BLOCK: CSSProperties = {
+  display: 'flex', flexDirection: 'column', gap: '6px', minWidth: 0,
+}
+
+/**
+ * 一屏多个字段时的等宽分栏。
+ * 官方设置表单里每个字段都独占一列、控件铺满整列（`.field` 是 flex column，
+ * 里面的 input 因此被拉伸到 100%）。按这个来，两个字段才会左右边缘都齐 ——
+ * 之前分段控件被文字撑开、数字框写死 88px，并排一看就是两块不一样的东西。
+ */
+const FIELD_GRID: CSSProperties = {
+  display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '16px',
+}
+
+/** 分段控件轨道的内边距（官方 SegmentedControl 原值）。 */
+const SEGMENT_TRACK_PADDING = 4
+/** 分段控件单段的高度（官方 SegmentedControl 原值）。 */
+const SEGMENT_HEIGHT = 28
+/**
+ * 控件行的统一高度 = 轨道内边距 × 2 + 段高。
+ * 分段控件的自然总高就是它，输入框直接取同一个值，并排时才不会一高一低。
+ */
+const CONTROL_HEIGHT = SEGMENT_TRACK_PADDING * 2 + SEGMENT_HEIGHT
 
 // ── 图标组件 ─────────────────────────────────────────────────────────────────
 
@@ -99,14 +138,16 @@ function ItemForm({
   const [passCwd, setPassCwd] = useState(initial?.passCwd !== false)
   const [error, setError] = useState('')
 
-  const hoverVar = 'var(--dsw-hover, rgba(0,0,0,0.05))'
-  const borderVar = 'var(--dsw-border-strong, rgba(0,0,0,0.12))'
-  const textVar = 'var(--dsw-fg, inherit)'
-  const dangerColor = 'var(--dsw-alias-danger, #e53e3e)'
-  const secondaryColor = 'var(--dsw-alias-label-secondary, #666)'
-  const brandColor = 'var(--dsw-alias-brand-primary, #4f8cff)'
-  const brandAlpha = 'var(--dsw-alias-brand-primary-alpha, rgba(79, 140, 255, 0.06))'
-  const inputBg = 'var(--dsw-specific-input, transparent)'
+  // 别名指向 tokens.ts 里的真实 token。此前这一段有六个变量名是编造的
+  // （--dsw-hover / --dsw-border-strong / --dsw-fg / --dsw-alias-danger /
+  // --dsw-specific-input / --dsw-alias-brand-primary-alpha），浏览器取不到就
+  // 一律回落到写死的浅色 rgba，深色主题下整片边框发闷 —— 那正是"颜色不合适"
+  // 的来源。现在全部走 ui-theme 的真实变量。
+  const textVar = TEXT
+  const dangerColor = DANGER
+  const brandColor = BRAND
+  const brandAlpha = BG_BRAND_WASH
+  const inputBg = BG_INPUT
 
   /** 去掉用户偶发的包裹引号，再校验必填。 */
   const submit = (): void => {
@@ -132,12 +173,14 @@ function ItemForm({
       onKeyDown={onKeyDown}
       style={{
         display: 'flex', flexDirection: 'column', gap: '8px', padding: '12px',
-        border: `1px solid ${brandColor}`, borderRadius: '8px', background: brandAlpha,
+        border: `${LINE} solid ${brandColor}`, borderRadius: RADIUS_MD, background: brandAlpha,
       }}
     >
-      <div style={{ display: 'flex', gap: '8px' }}>
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          <label style={{ fontSize: '11px', fontWeight: 500, color: secondaryColor }}>
+      {/* 与 FIELD_GRID 同一套字段规格：列间距 16px、控件撑满列宽、等高于 CONTROL_HEIGHT。
+          此前这里是 gap 4px / 高 30px / 内边距 8px，和页面上其他字段都对不上。 */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 2fr) auto', gap: '16px', alignItems: 'end' }}>
+        <div style={FIELD_BLOCK}>
+          <label style={FIELD_LABEL}>
             {t('settings.edit.namePlaceholder')}
           </label>
           <input
@@ -146,15 +189,18 @@ function ItemForm({
             onChange={(e) => { setName(e.target.value); setError('') }}
             placeholder={initial === null ? t('settings.edit.namePlaceholder') : undefined}
             autoFocus
+            onFocus={(e) => { e.currentTarget.style.borderColor = BORDER_FOCUS }}
+            onBlur={(e) => { e.currentTarget.style.borderColor = BORDER_INPUT }}
             style={{
-              height: '30px', padding: '0 8px', width: '100%', boxSizing: 'border-box',
-              border: `1px solid ${borderVar}`, borderRadius: '4px',
+              width: '100%', boxSizing: 'border-box',
+              height: `${String(CONTROL_HEIGHT)}px`, padding: '0 12px',
+              border: OUTLINE_INPUT, borderRadius: RADIUS_MD,
               background: inputBg, color: textVar, fontSize: '13px', outline: 'none',
             }}
           />
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '1 1 auto', minWidth: 0 }}>
-          <label style={{ fontSize: '11px', fontWeight: 500, color: secondaryColor }}>
+        <div style={FIELD_BLOCK}>
+          <label style={FIELD_LABEL}>
             {t('settings.edit.pathPlaceholder')}
           </label>
           <input
@@ -162,19 +208,21 @@ function ItemForm({
             value={path}
             onChange={(e) => { setPath(e.target.value); setError('') }}
             placeholder={initial === null ? t('settings.edit.pathPlaceholder') : undefined}
+            onFocus={(e) => { e.currentTarget.style.borderColor = BORDER_FOCUS }}
+            onBlur={(e) => { e.currentTarget.style.borderColor = BORDER_INPUT }}
             style={{
-              height: '30px', padding: '0 8px',
-              border: `1px solid ${borderVar}`, borderRadius: '4px',
-              background: inputBg, color: textVar, fontSize: '13px', outline: 'none',
               width: '100%', boxSizing: 'border-box',
+              height: `${String(CONTROL_HEIGHT)}px`, padding: '0 12px',
+              border: OUTLINE_INPUT, borderRadius: RADIUS_MD,
+              background: inputBg, color: textVar, fontSize: '13px', outline: 'none',
             }}
           />
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignSelf: 'flex-end', flexShrink: 0 }}>
-          <span style={{ fontSize: '11px', fontWeight: 500, color: secondaryColor, whiteSpace: 'nowrap' }}>
+        <div style={FIELD_BLOCK}>
+          <span style={{ ...FIELD_LABEL, whiteSpace: 'nowrap' }}>
             {t('settings.edit.passCwd')}
           </span>
-          <div style={{ display: 'flex', alignItems: 'center', height: '30px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', height: `${String(CONTROL_HEIGHT)}px` }}>
             <Switch
               checked={passCwd}
               onChange={setPassCwd}
@@ -184,7 +232,7 @@ function ItemForm({
         </div>
       </div>
       {error && (
-        <span style={{ fontSize: '11px', color: dangerColor }}>{error}</span>
+        <span style={{ fontSize: '12px', color: dangerColor }}>{error}</span>
       )}
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
         <button
@@ -192,7 +240,7 @@ function ItemForm({
           onClick={onCancel}
           style={{
             height: '28px', padding: '0 12px',
-            border: `1px solid ${borderVar}`, borderRadius: '4px',
+            border: OUTLINE_BUTTON, borderRadius: RADIUS_SM,
             background: 'transparent', color: textVar, cursor: 'pointer', fontSize: '12px',
           }}
         >
@@ -202,8 +250,8 @@ function ItemForm({
           type="button"
           onClick={submit}
           style={{
-            height: '28px', padding: '0 12px', border: 'none', borderRadius: '4px',
-            background: brandColor, color: '#fff',
+            height: '28px', padding: '0 12px', border: 'none', borderRadius: RADIUS_SM,
+            background: BRAND_FILL, color: TEXT_ON_BRAND,
             cursor: 'pointer', fontSize: '12px', fontWeight: 500,
           }}
         >
@@ -465,15 +513,15 @@ export function OpenWithSettings({ load, save, iconUrl, t }: OpenWithSettingsPro
   // 表单键盘事件由 ItemForm 内部处理，这里不再持有全局表单草稿。
 
   // ── 样式变量 ──────────────────────────────────────────────────────────────
-  const hoverVar = 'var(--dsw-hover, rgba(0,0,0,0.05))'
-  const borderVar = 'var(--dsw-border-strong, rgba(0,0,0,0.12))'
-  const textVar = 'var(--dsw-fg, inherit)'
-  const dangerColor = 'var(--dsw-alias-danger, #e53e3e)'
-  const secondaryColor = 'var(--dsw-alias-label-secondary, #666)'
-  const tertiaryColor = 'var(--dsw-alias-label-tertiary, #999)'
-  const brandColor = 'var(--dsw-alias-brand-primary, #4f8cff)'
-  const brandAlpha = 'var(--dsw-alias-brand-primary-alpha, rgba(79, 140, 255, 0.06))'
-  const inputBg = 'var(--dsw-specific-input, transparent)'
+  // 同 ItemForm：别名一律指向 tokens.ts 的真实 token。
+  const hoverVar = BG_HOVER
+  const textVar = TEXT
+  const dangerColor = DANGER
+  const secondaryColor = TEXT_SECONDARY
+  const tertiaryColor = TEXT_TERTIARY
+  const brandColor = BRAND
+  const brandAlpha = BG_BRAND_WASH
+  const inputBg = BG_INPUT
 
   const allItems = settings.items
 
@@ -486,9 +534,12 @@ export function OpenWithSettings({ load, save, iconUrl, t }: OpenWithSettingsPro
         <div
           role="alert"
           style={{
-            padding: '8px 12px', borderRadius: '6px', fontSize: '12px',
-            border: `1px solid ${dangerColor}`, color: dangerColor,
-            background: 'var(--dsw-alias-danger-alpha, rgba(229, 62, 62, 0.06))',
+            padding: '8px 12px', borderRadius: RADIUS_MD, fontSize: '12px',
+            border: `${LINE} solid color-mix(in srgb, ${dangerColor} 45%, transparent)`,
+            color: dangerColor,
+            // 官方表达淡色层的方式（见 ui-jobs/JobListAction）：color-mix，
+            // 不再依赖并不存在的 --dsw-alias-danger-alpha。
+            background: `color-mix(in srgb, ${dangerColor} 8%, transparent)`,
             wordBreak: 'break-all',
           }}
         >
@@ -499,15 +550,16 @@ export function OpenWithSettings({ load, save, iconUrl, t }: OpenWithSettingsPro
       {/*
         ── 按钮位置 / 按钮顺序 / 内置插件 ───────────────────────────────────────────────
       */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: '24px 40px' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: '0 1 auto', minWidth: 0 }}>
-          <label style={{ fontSize: '12px', fontWeight: 500, color: secondaryColor, marginBottom: '6px' }}>
-            {t('settings.placement.title')}
-          </label>
+      <div style={FIELD_GRID}>
+        <div style={FIELD_BLOCK}>
+          <label style={FIELD_LABEL}>{t('settings.placement.title')}</label>
+          {/* 照官方 SegmentedControl：轨道用 hover 底、无描边，选中的一段是抬起 pill。
+              grid-auto-columns 1fr 让两段等宽（官方同款），width 100% 让轨道铺满字段列。 */}
           <div
             style={{
-              display: 'inline-flex', alignItems: 'center', gap: '2px', alignSelf: 'flex-start',
-              padding: '2px', border: `1px solid ${borderVar}`, borderRadius: '6px',
+              display: 'grid', gridAutoFlow: 'column', gridAutoColumns: '1fr', gap: '2px',
+              padding: `${String(SEGMENT_TRACK_PADDING)}px`,
+              borderRadius: RADIUS_MD, background: hoverVar,
             }}
           >
             {PLACEMENT_OPTIONS.map((option) => {
@@ -518,10 +570,13 @@ export function OpenWithSettings({ load, save, iconUrl, t }: OpenWithSettingsPro
                   type="button"
                   onClick={() => { persist({ ...settings, placement: option.value }) }}
                   style={{
-                    height: '30px', padding: '0 8px', border: `1px solid ${borderVar}`, borderRadius: '6px',
-                    background: active ? brandColor : 'transparent',
-                    color: active ? '#fff' : textVar,
-                    cursor: 'pointer', fontSize: '12px', fontWeight: active ? 500 : 400,
+                    minWidth: 0,
+                    height: `${String(SEGMENT_HEIGHT)}px`, padding: '0 16px',
+                    border: 0, borderRadius: RADIUS_SM,
+                    background: active ? BG_RAISED : 'transparent',
+                    boxShadow: active ? ELEVATION_SOFT : 'none',
+                    color: active ? textVar : secondaryColor,
+                    cursor: 'pointer', fontSize: '13px', fontWeight: 500,
                     transition: 'background 0.15s, color 0.15s',
                   }}
                 >
@@ -532,25 +587,24 @@ export function OpenWithSettings({ load, save, iconUrl, t }: OpenWithSettingsPro
           </div>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: '0 1 auto', minWidth: 0 }}>
-          <label style={{ fontSize: '12px', fontWeight: 500, color: secondaryColor, marginBottom: '6px' }}>
-            {t('settings.order.title')}
-          </label>
+        <div style={FIELD_BLOCK}>
+          <label style={FIELD_LABEL}>{t('settings.order.title')}</label>
           <input
             type="number"
             inputMode="numeric"
             value={orderText}
             onChange={(e) => { setOrderText(e.target.value) }}
-            onBlur={commitOrder}
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); commitOrder() } }}
+            onFocus={(e) => { e.currentTarget.style.borderColor = BORDER_FOCUS }}
+            onBlur={(e) => { e.currentTarget.style.borderColor = BORDER_INPUT; commitOrder() }}
             style={{
-              width: '70px', height: '30px', padding: '0 8px',
-              border: `1px solid ${borderVar}`, borderRadius: '6px',
-              background: inputBg, color: textVar, fontSize: '12px',
+              width: '100%', boxSizing: 'border-box',
+              height: `${String(CONTROL_HEIGHT)}px`, padding: '0 12px',
+              border: OUTLINE_INPUT, borderRadius: RADIUS_MD,
+              background: inputBg, color: textVar, fontSize: '13px',
             }}
           />
         </div>
-
       </div>
 
       {/*
@@ -562,21 +616,22 @@ export function OpenWithSettings({ load, save, iconUrl, t }: OpenWithSettingsPro
         onDrop={onGroupDrop}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-          <label style={{ fontSize: '12px', fontWeight: 500, color: secondaryColor }}>
+          <label style={FIELD_LABEL}>
             {t('settings.items.title')}
           </label>
+          {/* 照官方 settings-form 的 `.head button`：字段标题右侧的操作是无框文字按钮，
+              不另做一颗描边小按钮 —— 同屏两套按钮形态才是"看起来不统一"的来源。 */}
           <button
             type="button"
             onClick={onRestoreClick}
+            onMouseEnter={(e) => { if (!restoreArmed) e.currentTarget.style.color = textVar }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = restoreArmed ? dangerColor : secondaryColor }}
             style={{
               marginLeft: 'auto',
-              height: '22px', padding: '0 8px',
-              border: `1px solid ${restoreArmed ? dangerColor : borderVar}`,
-              borderRadius: '4px', background: 'transparent',
+              padding: 0, border: 'none', background: 'none',
               color: restoreArmed ? dangerColor : secondaryColor,
-              cursor: 'pointer',
-              fontSize: '11px',
-              transition: 'color 0.15s, border-color 0.15s',
+              cursor: 'pointer', fontSize: '12px', lineHeight: 1.5,
+              transition: 'color 0.15s',
             }}
           >
             {t(restoreArmed ? 'settings.items.restoreConfirm' : 'settings.items.restore')}
@@ -616,8 +671,8 @@ export function OpenWithSettings({ load, save, iconUrl, t }: OpenWithSettingsPro
                 style={{
                   display: 'flex', alignItems: 'center', gap: '10px',
                   padding: '8px 12px',
-                  border: `1px solid ${isActive ? brandColor : borderVar}`,
-                  borderRadius: '8px',
+                  border: `${LINE} solid ${isActive ? brandColor : BORDER_LINE}`,
+                  borderRadius: RADIUS_MD,
                   background: isActive ? brandAlpha : 'transparent',
                   cursor: isDragging ? 'grabbing' : 'grab',
                   opacity: isDragging ? 0.4 : 1,
@@ -640,13 +695,13 @@ export function OpenWithSettings({ load, save, iconUrl, t }: OpenWithSettingsPro
                   <span style={{ fontSize: '13px', fontWeight: 500, lineHeight: 1.3 }}>
                     {item.name}
                     {isActive && (
-                      <span style={{ fontSize: '10px', color: brandColor, marginLeft: '6px', fontWeight: 600 }}>
+                      <span style={{ fontSize: '12px', color: brandColor, marginLeft: '6px', fontWeight: 600 }}>
                         ✓ {t('settings.current.title')}
                       </span>
                     )}
                   </span>
                   <span style={{
-                    fontSize: '11px', color: tertiaryColor,
+                    fontSize: '12px', color: tertiaryColor,
                     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                   }}>
                     {item.path}
@@ -668,7 +723,7 @@ export function OpenWithSettings({ load, save, iconUrl, t }: OpenWithSettingsPro
                   title={t('settings.edit')}
                   style={{
                     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                    width: '24px', height: '24px', padding: 0, border: 'none', borderRadius: '4px',
+                    width: '24px', height: '24px', padding: 0, border: 'none', borderRadius: RADIUS_XS,
                     background: 'transparent', color: secondaryColor, cursor: 'pointer',
                     fontSize: '14px', opacity: 0.6, transition: 'opacity 0.15s, background 0.15s',
                   }}
@@ -683,7 +738,7 @@ export function OpenWithSettings({ load, save, iconUrl, t }: OpenWithSettingsPro
                   title={t('settings.delete')}
                   style={{
                     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                    width: '24px', height: '24px', padding: 0, border: 'none', borderRadius: '4px',
+                    width: '24px', height: '24px', padding: 0, border: 'none', borderRadius: RADIUS_XS,
                     background: 'transparent', color: dangerColor, cursor: 'pointer',
                     fontSize: '14px', opacity: 0.6, transition: 'opacity 0.15s, background 0.15s',
                   }}
@@ -710,7 +765,7 @@ export function OpenWithSettings({ load, save, iconUrl, t }: OpenWithSettingsPro
             style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
               width: '100%', padding: '10px 0',
-              border: `1px dashed ${borderVar}`, borderRadius: '8px',
+              border: `${LINE} dashed ${BORDER_LINE}`, borderRadius: RADIUS_MD,
               background: 'transparent', color: secondaryColor, cursor: 'pointer',
               fontSize: '13px', transition: 'background 0.15s, border-color 0.15s',
             }}
@@ -720,7 +775,7 @@ export function OpenWithSettings({ load, save, iconUrl, t }: OpenWithSettingsPro
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.background = 'transparent'
-              e.currentTarget.style.borderColor = borderVar
+              e.currentTarget.style.borderColor = BORDER_LINE
             }}
           >
             <span style={{ fontSize: '16px', lineHeight: 1 }}>+</span>

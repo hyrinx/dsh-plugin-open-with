@@ -21,6 +21,7 @@ import type { OpenWithItem, OpenWithSettings, OpenWithSettingsPayload } from '..
 import type { OpenWithLogLevel } from './controller.ts'
 import { ItemIcon } from './ItemIcon.tsx'
 import { latestSettings, subscribeSettings } from './settings-events.ts'
+import { BG_HOVER, BORDER_LINE, OUTLINE_LINE, RADIUS_SM, TEXT } from './tokens.ts'
 
 /** Session-header slots this button can mount into, chosen by the settings page. */
 export type HeaderActionSlot =
@@ -150,10 +151,6 @@ export function OpenWithButton({
     run(id)
   }
 
-  const borderVar = 'var(--dsw-alias-border-l2, rgba(0,0,0,0.12))'
-  const hoverVar = 'var(--dsw-alias-interactive-bg-hover, rgba(0,0,0,0.05))'
-  const textVar = 'var(--dsw-alias-label-primary, inherit)'
-
   const halfStyle = {
     display: 'inline-flex',
     alignItems: 'center',
@@ -189,9 +186,9 @@ export function OpenWithButton({
               display: 'inline-flex',
               alignItems: 'stretch',
               height: '28px',
-              borderRadius: '6px',
-              border: `1px solid ${borderVar}`,
-              color: textVar,
+              borderRadius: RADIUS_SM,
+              border: OUTLINE_LINE,
+              color: TEXT,
               fontSize: '12px',
               // Rounds the two halves through the outer frame.
               overflow: 'hidden',
@@ -202,8 +199,8 @@ export function OpenWithButton({
               onClick={onPrimary}
               title={t('tooltip')}
               aria-label={current === undefined ? t('label') : labelOf(current)}
-              style={{ ...halfStyle, gap: '4px', padding: '0 8px', borderRadius: '6px 0 0 6px' }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = hoverVar }}
+              style={{ ...halfStyle, gap: '4px', padding: '0 8px', borderRadius: `${RADIUS_SM} 0 0 ${RADIUS_SM}` }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = BG_HOVER }}
               onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
             >
               <ItemIcon src={current === undefined ? '' : iconUrl(current.id)} size={14} />
@@ -211,15 +208,15 @@ export function OpenWithButton({
                 {current === undefined ? t('label') : labelOf(current)}
               </span>
             </button>
-            <span aria-hidden="true" style={{ width: '1px', background: borderVar, flex: '0 0 auto' }} />
+            <span aria-hidden="true" style={{ width: '1px', background: BORDER_LINE, flex: '0 0 auto' }} />
             <button
               type="button"
               onClick={onChevron}
               aria-label={t('picker.aria')}
               aria-haspopup="menu"
               aria-expanded={open}
-              style={{ ...halfStyle, justifyContent: 'center', padding: '0 5px', borderRadius: '0 6px 6px 0' }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = hoverVar }}
+              style={{ ...halfStyle, justifyContent: 'center', padding: '0 5px', borderRadius: `0 ${RADIUS_SM} ${RADIUS_SM} 0` }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = BG_HOVER }}
               onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
             >
               <Chevron open={open} />

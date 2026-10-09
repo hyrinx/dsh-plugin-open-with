@@ -190,13 +190,10 @@ export interface OpenWithLogPayload {
  * item the settings page can rename, re-target, hide, and remove.
  */
 export const DEFAULT_ITEMS: readonly OpenWithItem[] = [
-  { id: 'code', name: 'VS Code', path: 'code' },
-  // A terminal hands any argument to its own shell, so the session folder would
-  // be run as a command; its new window takes the working directory from the
-  // spawn instead.
-  { id: 'cmd', name: 'Command Prompt', path: 'cmd', passCwd: false },
+  { id: 'explorer', name: 'Explorer', path: 'explorer' },
+  { id: 'cmd', name: 'Command', path: 'cmd', passCwd: false },
   { id: 'powershell', name: 'PowerShell', path: 'powershell', passCwd: false },
-  { id: 'explorer', name: 'File Explorer', path: 'explorer' },
+  { id: 'code', name: 'VS Code', path: 'code' },
 ]
 
 /** The settings document used before one has ever been written. */

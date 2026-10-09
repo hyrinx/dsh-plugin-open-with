@@ -98,17 +98,156 @@ function InsertionLine({ color }: { color: string }) {
   )
 }
 
+// ── 编辑 / 添加表单 ─────────────────────────────────────────────────────────
+
+/** 表单提交时携带的草稿值。 */
+export interface ItemFormValue {
+  readonly name: string
+  readonly path: string
+  readonly passCwd: boolean
+}
+
+/**
+ * 添加与编辑共用的启动器表单：自持草稿状态，两份表单不再各写一遍。
+ *
+ * `initial` 为 null 表示添加一个新项，否则编辑该项并以其当前值作为初始值。
+ * 外部切换编辑目标时可用 `key` 强制重建，使草稿与初始值同步。
+ */
+function ItemForm({
+  initial, submitLabel, onCancel, onSubmit, t,
+}: {
+  initial: OpenWithItem | null
+  submitLabel: string
+  onCancel: () => void
+  onSubmit: (value: ItemFormValue) => void
+  t: OpenWithSettingsProps['t']
+}) {
+  const [name, setName] = useState(initial?.name ?? '')
+  const [path, setPath] = useState(initial?.path ?? '')
+  const [passCwd, setPassCwd] = useState(initial?.passCwd !== false)
+  const [error, setError] = useState('')
+
+  const hoverVar = 'var(--dsw-hover, rgba(0,0,0,0.05))'
+  const borderVar = 'var(--dsw-border-strong, rgba(0,0,0,0.12))'
+  const textVar = 'var(--dsw-fg, inherit)'
+  const dangerColor = 'var(--dsw-alias-danger, #e53e3e)'
+  const secondaryColor = 'var(--dsw-alias-label-secondary, #666)'
+  const brandColor = 'var(--dsw-alias-brand-primary, #4f8cff)'
+  const brandAlpha = 'var(--dsw-alias-brand-primary-alpha, rgba(79, 140, 255, 0.06))'
+  const inputBg = 'var(--dsw-specific-input, transparent)'
+
+  /** 去掉用户偶发的包裹引号，再校验必填。 */
+  const submit = (): void => {
+    const trimmedName = name.trim()
+    let trimmedPath = path.trim()
+    if ((trimmedPath.startsWith('"') && trimmedPath.endsWith('"'))
+      || (trimmedPath.startsWith("'") && trimmedPath.endsWith("'"))) {
+      trimmedPath = trimmedPath.slice(1, -1)
+    }
+    if (!trimmedName) { setError(t('settings.edit.namePlaceholder')); return }
+    if (!trimmedPath) { setError(t('settings.edit.pathPlaceholder')); return }
+    setError('')
+    onSubmit({ name: trimmedName, path: trimmedPath, passCwd })
+  }
+
+  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>): void => {
+    if (e.key === 'Escape') { e.preventDefault(); onCancel() }
+    if (e.key === 'Enter') { e.preventDefault(); submit() }
+  }
+
+  return (
+    <div
+      onKeyDown={onKeyDown}
+      style={{
+        display: 'flex', flexDirection: 'column', gap: '8px', padding: '12px',
+        border: `1px solid ${brandColor}`, borderRadius: '8px', background: brandAlpha,
+      }}
+    >
+      <div style={{ display: 'flex', gap: '8px' }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <label style={{ fontSize: '11px', fontWeight: 500, color: secondaryColor }}>
+            {t('settings.edit.namePlaceholder')}
+          </label>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => { setName(e.target.value); setError('') }}
+            placeholder={initial === null ? t('settings.edit.namePlaceholder') : undefined}
+            autoFocus
+            style={{
+              height: '30px', padding: '0 8px', width: '100%', boxSizing: 'border-box',
+              border: `1px solid ${borderVar}`, borderRadius: '4px',
+              background: inputBg, color: textVar, fontSize: '13px', outline: 'none',
+            }}
+          />
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '1 1 auto', minWidth: 0 }}>
+          <label style={{ fontSize: '11px', fontWeight: 500, color: secondaryColor }}>
+            {t('settings.edit.pathPlaceholder')}
+          </label>
+          <input
+            type="text"
+            value={path}
+            onChange={(e) => { setPath(e.target.value); setError('') }}
+            placeholder={initial === null ? t('settings.edit.pathPlaceholder') : undefined}
+            style={{
+              height: '30px', padding: '0 8px',
+              border: `1px solid ${borderVar}`, borderRadius: '4px',
+              background: inputBg, color: textVar, fontSize: '13px', outline: 'none',
+              width: '100%', boxSizing: 'border-box',
+            }}
+          />
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignSelf: 'flex-end', flexShrink: 0 }}>
+          <span style={{ fontSize: '11px', fontWeight: 500, color: secondaryColor, whiteSpace: 'nowrap' }}>
+            {t('settings.edit.passCwd')}
+          </span>
+          <div style={{ display: 'flex', alignItems: 'center', height: '30px' }}>
+            <Switch
+              checked={passCwd}
+              onChange={setPassCwd}
+              label={t('settings.edit.passCwd')}
+            />
+          </div>
+        </div>
+      </div>
+      {error && (
+        <span style={{ fontSize: '11px', color: dangerColor }}>{error}</span>
+      )}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+        <button
+          type="button"
+          onClick={onCancel}
+          style={{
+            height: '28px', padding: '0 12px',
+            border: `1px solid ${borderVar}`, borderRadius: '4px',
+            background: 'transparent', color: textVar, cursor: 'pointer', fontSize: '12px',
+          }}
+        >
+          {t('settings.cancel')}
+        </button>
+        <button
+          type="button"
+          onClick={submit}
+          style={{
+            height: '28px', padding: '0 12px', border: 'none', borderRadius: '4px',
+            background: brandColor, color: '#fff',
+            cursor: 'pointer', fontSize: '12px', fontWeight: 500,
+          }}
+        >
+          {submitLabel}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ── 主组件 ───────────────────────────────────────────────────────────────────
 
 export function OpenWithSettings({ load, save, iconUrl, peers, loadBuiltins, setBuiltin, t }: OpenWithSettingsProps): JSX.Element {
   const [settings, setSettings] = useState<OpenWithSettingsDoc>(defaultSettings)
   // 统一的添加/编辑表单状态：formItemId 为 null 时隐藏，'__add__' 时添加，否则为编辑项 id
   const [formItemId, setFormItemId] = useState<string | null>(null)
-  const [formName, setFormName] = useState('')
-  const [formPath, setFormPath] = useState('')
-  // 自定义项是否把会话目录作为参数传给启动器
-  const [formPassCwd, setFormPassCwd] = useState(true)
-  const [formError, setFormError] = useState('')
   // 拖拽排序状态
   const [dragState, setDragState] = useState<{ itemId: string } | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
@@ -248,46 +387,24 @@ export function OpenWithSettings({ load, save, iconUrl, peers, loadBuiltins, set
 
   // 打开表单：无参数时为添加，传 item 时为编辑
   const openForm = useCallback((item?: OpenWithItem) => {
-    if (item) {
-      setFormItemId(item.id)
-      setFormName(item.name)
-      setFormPath(item.path)
-      setFormPassCwd(item.passCwd !== false)
-    } else {
-      setFormItemId('__add__')
-      setFormName('')
-      setFormPath('')
-      setFormPassCwd(true)
-    }
-    setFormError('')
+    setFormItemId(item ? item.id : '__add__')
   }, [])
 
   // 关闭表单
   const closeForm = useCallback(() => {
     setFormItemId(null)
-    setFormName('')
-    setFormPath('')
-    setFormPassCwd(true)
-    setFormError('')
   }, [])
 
   // 提交表单：添加或编辑（立即保存并关闭）
-  const submitForm = useCallback(async () => {
+  const submitForm = useCallback((value: ItemFormValue) => {
     if (formItemId === null) return
-    const name = formName.trim()
-    let path = formPath.trim()
-    if ((path.startsWith('"') && path.endsWith('"')) || (path.startsWith("'") && path.endsWith("'"))) {
-      path = path.slice(1, -1)
-    }
-    if (!name) { setFormError(t('settings.edit.namePlaceholder')); return }
-    if (!path) { setFormError(t('settings.edit.pathPlaceholder')); return }
-    setFormError('')
+    const { name, path, passCwd } = value
 
     if (formItemId === '__add__') {
       const newId = `item-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
       const newItem: OpenWithItem = {
         id: newId, name, path,
-        ...(formPassCwd ? {} : { passCwd: false }),
+        ...(passCwd ? {} : { passCwd: false }),
       }
       persist({ ...settings, items: [...settings.items, newItem] })
     } else {
@@ -295,12 +412,12 @@ export function OpenWithSettings({ load, save, iconUrl, peers, loadBuiltins, set
         if (it.id !== formItemId) return it
         const merged: OpenWithItem = { ...it, name, path }
         delete (merged as { passCwd?: boolean }).passCwd
-        return formPassCwd ? merged : { ...merged, passCwd: false }
+        return passCwd ? merged : { ...merged, passCwd: false }
       })
       persist({ ...settings, items: nextItems })
     }
     closeForm()
-  }, [formItemId, formName, formPath, formPassCwd, settings, persist, closeForm, t])
+  }, [formItemId, settings, persist, closeForm])
 
   // 提交按钮顺序：归一化后保存；非法或未变则回退显示
   const commitOrder = useCallback(() => {
@@ -326,11 +443,7 @@ export function OpenWithSettings({ load, save, iconUrl, peers, loadBuiltins, set
     })
   }, [])
 
-  // 表单键盘事件
-  const onFormKeyDown = (e: KeyboardEvent<HTMLDivElement>): void => {
-    if (e.key === 'Escape') closeForm()
-    if (e.key === 'Enter') { e.preventDefault(); void submitForm() }
-  }
+  // 表单键盘事件由 ItemForm 内部处理，这里不再持有全局表单草稿。
 
   // ── 样式变量 ──────────────────────────────────────────────────────────────
   const hoverVar = 'var(--dsw-hover, rgba(0,0,0,0.05))'
@@ -520,88 +633,7 @@ export function OpenWithSettings({ load, save, iconUrl, peers, loadBuiltins, set
 
           // 编辑模式：显示内联编辑表单
           if (isEditing) {
-            return (
-              <div
-                key={item.id}
-                onKeyDown={onFormKeyDown}
-                style={{
-                  display: 'flex', flexDirection: 'column', gap: '8px', padding: '12px',
-                  border: `1px solid ${brandColor}`, borderRadius: '8px', background: brandAlpha,
-                }}
-              >
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <label style={{ fontSize: '11px', fontWeight: 500, color: secondaryColor }}>
-                      {t('settings.edit.namePlaceholder')}
-                    </label>
-                    <input
-                      type="text"
-                      value={formName}
-                      onChange={(e) => { setFormName(e.target.value); setFormError('') }}
-                      autoFocus
-                      style={{
-                        height: '30px', padding: '0 8px',
-                        border: `1px solid ${borderVar}`, borderRadius: '4px',
-                        background: inputBg, color: textVar, fontSize: '13px', outline: 'none',
-                      }}
-                    />
-                  </div>
-                  <div style={{ flex: 2, display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <label style={{ fontSize: '11px', fontWeight: 500, color: secondaryColor }}>
-                      {t('settings.edit.pathPlaceholder')}
-                    </label>
-                    <input
-                      type="text"
-                      value={formPath}
-                      onChange={(e) => { setFormPath(e.target.value); setFormError('') }}
-                      style={{
-                        height: '30px', padding: '0 8px',
-                        border: `1px solid ${borderVar}`, borderRadius: '4px',
-                        background: inputBg, color: textVar, fontSize: '13px', outline: 'none',
-                      }}
-                    />
-                  </div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontSize: '11px', color: secondaryColor }}>
-                    {t('settings.edit.passCwd')}
-                  </span>
-                  <Switch
-                    checked={formPassCwd}
-                    onChange={(next: boolean) => { setFormPassCwd(next) }}
-                    label={t('settings.edit.passCwd')}
-                  />
-                </div>
-                {formError && (
-                  <span style={{ fontSize: '11px', color: dangerColor }}>{formError}</span>
-                )}
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-                  <button
-                    type="button"
-                    onClick={closeForm}
-                    style={{
-                      height: '28px', padding: '0 12px',
-                      border: `1px solid ${borderVar}`, borderRadius: '4px',
-                      background: 'transparent', color: textVar, cursor: 'pointer', fontSize: '12px',
-                    }}
-                  >
-                    {t('settings.cancel')}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={submitForm}
-                    style={{
-                      height: '28px', padding: '0 12px', border: 'none', borderRadius: '4px',
-                      background: brandColor, color: '#fff',
-                      cursor: 'pointer',
-                      fontSize: '12px', fontWeight: 500,
-                    }}
-                  >
-                    {t('settings.save')}
-                  </button>
-                </div>
-              </div>
-            )
+            return <ItemForm key={`edit-${item.id}`} initial={item} submitLabel={t('settings.save')} onCancel={closeForm} onSubmit={submitForm} t={t} />
           }
 
           // 正常模式：显示卡片
@@ -731,87 +763,7 @@ export function OpenWithSettings({ load, save, iconUrl, peers, loadBuiltins, set
             <span>{t('settings.items.add')}</span>
           </button>
         ) : (
-          <div
-            onKeyDown={onFormKeyDown}
-            style={{
-              display: 'flex', flexDirection: 'column', gap: '8px', padding: '12px',
-              border: `1px solid ${brandColor}`, borderRadius: '8px', background: brandAlpha,
-            }}
-          >
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label style={{ fontSize: '11px', fontWeight: 500, color: secondaryColor }}>
-                  {t('settings.edit.namePlaceholder')}
-                </label>
-                <input
-                  type="text"
-                  value={formName}
-                  onChange={(e) => { setFormName(e.target.value); setFormError('') }}
-                  placeholder={t('settings.edit.namePlaceholder')}
-                  autoFocus
-                  style={{
-                    height: '30px', padding: '0 8px',
-                    border: `1px solid ${borderVar}`, borderRadius: '4px',
-                    background: inputBg, color: textVar, fontSize: '13px', outline: 'none',
-                  }}
-                />
-              </div>
-              <div style={{ flex: 2, display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label style={{ fontSize: '11px', fontWeight: 500, color: secondaryColor }}>
-                  {t('settings.edit.pathPlaceholder')}
-                </label>
-                <input
-                  type="text"
-                  value={formPath}
-                  onChange={(e) => { setFormPath(e.target.value); setFormError('') }}
-                  placeholder={t('settings.edit.pathPlaceholder')}
-                  style={{
-                    height: '30px', padding: '0 8px',
-                    border: `1px solid ${borderVar}`, borderRadius: '4px',
-                    background: inputBg, color: textVar, fontSize: '13px', outline: 'none',
-                  }}
-                />
-              </div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '11px', color: secondaryColor }}>
-                {t('settings.edit.passCwd')}
-              </span>
-              <Switch
-                checked={formPassCwd}
-                onChange={(next: boolean) => { setFormPassCwd(next) }}
-                label={t('settings.edit.passCwd')}
-              />
-            </div>
-            {formError && (
-              <span style={{ fontSize: '11px', color: dangerColor }}>{formError}</span>
-            )}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-              <button
-                type="button"
-                onClick={closeForm}
-                style={{
-                  height: '28px', padding: '0 12px',
-                  border: `1px solid ${borderVar}`, borderRadius: '4px',
-                  background: 'transparent', color: textVar, cursor: 'pointer', fontSize: '12px',
-                }}
-              >
-                {t('settings.cancel')}
-              </button>
-              <button
-                type="button"
-                onClick={submitForm}
-                style={{
-                  height: '28px', padding: '0 12px', border: 'none', borderRadius: '4px',
-                  background: brandColor, color: '#fff',
-                  cursor: 'pointer',
-                  fontSize: '12px', fontWeight: 500,
-                }}
-              >
-                {t('settings.items.add')}
-              </button>
-            </div>
-          </div>
+          <ItemForm key="add" initial={null} submitLabel={t('settings.items.add')} onCancel={closeForm} onSubmit={submitForm} t={t} />
         )}
       </div>
     </div>

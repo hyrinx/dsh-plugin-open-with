@@ -51,32 +51,6 @@ export interface OpenWithKey {
     'settings.save.failed': string;
     /** 设置页 - 按钮顺序标题 */
     'settings.order.title': string;
-    /** 设置页 - 同槽位组件标题 */
-    'settings.peers.title': string;
-    /** 设置页 - 该槽位暂无组件 */
-    'settings.peers.empty': string;
-    /** 设置页 - 刷新同槽位组件 */
-    'settings.peers.refresh': string;
-    /** 设置页 - 本插件标记 */
-    'settings.peers.self': string;
-    /** 设置页 - 内置插件标题 */
-    'settings.builtins.title': string;
-    /** 设置页 - 内置插件读取中 */
-    'settings.builtins.loading': string;
-    /** 设置页 - 无插件管理器 */
-    'settings.builtins.unavailable': string;
-    /** 设置页 - 宿主半尚未重载 */
-    'settings.builtins.stale': string;
-    /** 设置页 - 该半边未加载 */
-    'settings.builtins.missing': string;
-    /** 设置页 - 该条目受插件管理器保护 */
-    'settings.builtins.readOnlyManagement': string;
-    /** 设置页 - 该条目在 patch 中无法寻址 */
-    'settings.builtins.readOnlyUnaddressable': string;
-    /** 设置页 - 已启用 */
-    'settings.builtins.on': string;
-    /** 设置页 - 已禁用 */
-    'settings.builtins.off': string;
 }
 /** English dictionary. */
 export declare const en: OpenWithKey;

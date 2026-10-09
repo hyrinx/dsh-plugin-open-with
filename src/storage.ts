@@ -9,13 +9,13 @@
  */
 
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import {
   OPEN_WITH_DIR_NAME, OPEN_WITH_LOG_FILENAME, OPEN_WITH_SETTINGS_FILENAME,
   normalizeSettings, type OpenWithSettings,
 } from './shared.ts'
-import { dshHomePath } from './dsh-home.ts'
 
 /**
  * Directory owning this plugin's settings and log inside the active profile.
@@ -24,9 +24,13 @@ import { dshHomePath } from './dsh-home.ts'
  */
 export function openWithDirOf(ctx: Context): string {
   const profileDir: unknown = ctx.profileContext?.dir
-  return typeof profileDir === 'string' && profileDir.length > 0
-    ? join(profileDir, OPEN_WITH_DIR_NAME)
-    : dshHomePath('profiles', 'default', OPEN_WITH_DIR_NAME)
+  if (typeof profileDir === 'string' && profileDir.length > 0) {
+    return join(profileDir, OPEN_WITH_DIR_NAME)
+  }
+  // A composition with no profile (a bare test harness) gets the same layout
+  // under $DSH_HOME rather than scattering files next to the working directory.
+  const home = process.env.DSH_HOME?.trim() || join(homedir(), '.dsh')
+  return join(home, 'profiles', 'default', OPEN_WITH_DIR_NAME)
 }
 
 /** Settings document path inside one plugin directory. */

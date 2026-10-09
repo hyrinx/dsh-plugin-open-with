@@ -25,49 +25,12 @@ export declare const OPEN_WITH_OPEN_ROUTE: string;
 export declare const OPEN_WITH_LOG_PATH = "/open-with/log";
 /** Browser-relative form of {@link OPEN_WITH_LOG_PATH}. */
 export declare const OPEN_WITH_LOG_ROUTE: string;
-/** GET the built-in open-in-app enablement; POST switches both halves together. */
-export declare const OPEN_WITH_BUILTINS_PATH = "/open-with/builtins";
-/** Browser-relative form of {@link OPEN_WITH_BUILTINS_PATH}. */
-export declare const OPEN_WITH_BUILTINS_ROUTE: string;
 /** Directory this plugin owns inside the active profile directory. */
 export declare const OPEN_WITH_DIR_NAME = "open-with";
 /** Settings document filename inside {@link OPEN_WITH_DIR_NAME}. */
 export declare const OPEN_WITH_SETTINGS_FILENAME = "settings.json";
 /** Host log filename inside {@link OPEN_WITH_DIR_NAME}. */
 export declare const OPEN_WITH_LOG_FILENAME = "host.log";
-/**
- * DSH 自带的「在应用中打开」是一对必须同时运行的包：
- * `@deepseek-ai/dsh-host-open-in-app` 提供 `/open-in-app` 三条路由，
- * `@deepseek-ai/dsh-client-ui-open-in-app` 提供停在 utilities 槽位的胶囊按钮。
- *
- * 只留一半会得到残废的形态（要么一个点不动的按钮，要么一个没人调用的后端），
- * 所以设置页把它们当成一个整体开关。
- */
-export declare const OPEN_WITH_BUILTIN_MODULES: readonly string[];
-/** 内置「在应用中打开」这一对的观测状态（整体语义）。 */
-export interface OpenWithBuiltinState {
-    /** 只要有一半不在运行中的 profile 里就是 false。 */
-    readonly present: boolean;
-    /** 两半都在运行时才为 true。 */
-    readonly enabled: boolean;
-    /** 有一半无法被 profile 控制寻址时为 true。 */
-    readonly readOnly: boolean;
-    /** 只读的原因：受保护的管理包，或 patch 无法寻址的行。 */
-    readonly readOnlyReason?: 'management-required' | 'unaddressable';
-}
-/** GET 响应：这里能否切换，以及这一对的合并状态。 */
-export interface OpenWithBuiltinsPayload extends OpenWithBuiltinState {
-    /** host 未暴露 pluginManager 时为 false，此时什么都切换不了。 */
-    readonly available: boolean;
-    /**
-     * 浏览器半比 host 半新时为 true：路由回了 404，这只发生在 host 插件重载之前。
-     */
-    readonly stale?: boolean;
-}
-/** POST 请求体：一起切换内置的两半。 */
-export interface OpenWithBuiltinTogglePayload {
-    readonly enabled: boolean;
-}
 /** Session-header slot the capsule button mounts into. */
 export type Placement = 'actions' | 'utilities';
 /** Default placement: the right-hand utilities cluster, beside DSH's own controls. */
@@ -114,26 +77,6 @@ export interface OpenWithSettings {
 /** Settings-route response: the stored document. */
 export interface OpenWithSettingsPayload {
     readonly settings: OpenWithSettings;
-}
-/**
- * One entry already registered in a session-header seat this plugin can occupy.
- *
- * Read from the browser-side slot ledger so the settings page can show where
- * this plugin's capsule lands relative to the components around it.
- */
-export interface OpenWithPeer {
-    /** Seat the entry occupies. */
-    readonly slot: Placement;
-    /** Registration id. */
-    readonly id: string;
-    /** List order: a smaller value sits further left. */
-    readonly order: number;
-    /** Coarse bucket applied before `order`. */
-    readonly priority: number;
-    /** Diagnostics label of the registrant, when it declared one. */
-    readonly registrant?: string;
-    /** True for this plugin's own entry. */
-    readonly self: boolean;
 }
 /** Open-route request body. */
 export interface OpenWithOpenPayload {

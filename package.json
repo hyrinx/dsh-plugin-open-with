@@ -38,7 +38,8 @@
     }
   },
   "scripts": {
-    "build": "tsdown && tsc -p tsconfig.json",
+    "clean": "node -e \"require('node:fs').rmSync('lib', { recursive: true, force: true })\"",
+    "build": "npm run clean && tsdown && tsc -p tsconfig.json",
     "prepack": "npm run build",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },

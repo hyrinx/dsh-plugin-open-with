@@ -10,9 +10,26 @@
 # Settings live in profile/<mode>/open-with/settings.json and the host
 # log in profile/<mode>/open-with/host.log.
 #
-# To add a built-in launcher, edit src/shared.ts (PRESET_ITEMS +
-# LaunchTarget), src/launch.ts (the spawn recipe), and
-# src/client/locales.ts (the label).
+# To add a default launcher, add one entry to DEFAULT_ITEMS in
+# src/shared.ts. Every item is an ordinary item, so nothing else changes:
+# the host resolves its path on the first write and the capsule picks it up
+# as soon as the settings document is saved.
+
+# ── 关掉 DSH 自带的 open-in-app ───────────────────────────────────────────────
+# 它和本插件提供同一个按钮，两个一起出现就是两个「打开」。
+#
+# 这两条是**声明式覆盖**（id-targeted disable）：它们属于本 bundle 的 patch
+# 层，随 bundle 一起加载、也随 bundle 一起消失。所以卸载、或从 profile 的
+# bundles 列表里移除本插件之后，内置按钮会自动回来 —— 本插件从不往
+# profile 的 cordis.patch.yml 写任何东西。
+#
+# 想在本插件仍然装着的时候把内置按钮要回来：在 profile 的
+# cordis.patch.yml 里写 `- id: open-in-app` / `disabled: false`
+# （profile 层后应用，会覆盖本层）。
+- id: open-in-app
+  disabled: true
+- id: ui-open-in-app
+  disabled: true
 
 - insert:
     - id: open-with

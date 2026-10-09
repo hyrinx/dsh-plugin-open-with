@@ -14,7 +14,7 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import {
   DEFAULT_ORDER, DEFAULT_PLACEMENT, OPEN_WITH_ICON_PREFIX_ROUTE,
-  type OpenWithPeer, type OpenWithSettings, type Placement,
+  type OpenWithSettings, type Placement,
 } from '../shared.ts'
 import { OpenWithController, type OpenWithLogLevel } from './controller.ts'
 import { publishSettings, settingsRevision } from './settings-events.ts'
@@ -66,40 +66,6 @@ export function apply(ctx: ClientContext): void {
       controller.log('warn', 'session lookup failed', err)
       return undefined
     }
-  }
-
-  /**
-   * 快照两个会话头部槽位里已注册的条目，供设置页展示本插件按钮的相邻组件。
-   * 条目按渲染顺序返回（先 priority 升序，再 order 升序）。
-   */
-  const listPeers = (): OpenWithPeer[] => {
-    const peers: OpenWithPeer[] = []
-    for (const placement of Object.keys(PLACEMENT_SLOT) as Placement[]) {
-      const slot = PLACEMENT_SLOT[placement]
-      let entries: readonly {
-        options?: { id?: unknown; order?: unknown; priority?: unknown }
-        registrant?: unknown
-      }[] = []
-      try {
-        entries = ctx.slots.entries(slot) as never
-      } catch (err) {
-        controller.log('warn', 'slot ledger read failed', { slot, err })
-        continue
-      }
-      for (const entry of entries) {
-        const id = entry.options?.id
-        if (typeof id !== 'string' || id.length === 0) continue
-        peers.push({
-          slot: placement,
-          id,
-          order: typeof entry.options?.order === 'number' ? entry.options.order : 0,
-          priority: typeof entry.options?.priority === 'number' ? entry.options.priority : 0,
-          ...(typeof entry.registrant === 'string' ? { registrant: entry.registrant } : {}),
-          self: id === 'open-with',
-        })
-      }
-    }
-    return peers
   }
 
   let mounted: { placement: Placement; order: number; dispose: () => void } | null = null
@@ -164,9 +130,6 @@ export function apply(ctx: ClientContext): void {
           return saved
         },
         iconUrl,
-        peers: listPeers,
-        loadBuiltins: () => controller.loadBuiltins(),
-        setBuiltin: (enabled: boolean) => controller.setBuiltin(enabled),
       }),
     },
     OpenWithSettingsPanel,

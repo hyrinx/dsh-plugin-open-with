@@ -5,7 +5,7 @@
  * is no client-side cache, so the menu and the settings page always show the
  * document the host actually holds.
  */
-import { type OpenWithBuiltinsPayload, type OpenWithSettings, type OpenWithSettingsPayload } from '../shared.ts';
+import { type OpenWithSettings, type OpenWithSettingsPayload } from '../shared.ts';
 type Fetch = (input: string | URL, init?: RequestInit) => Promise<Response>;
 /** Log levels the log route accepts. */
 export type OpenWithLogLevel = 'info' | 'warn' | 'error';
@@ -33,17 +33,6 @@ export declare class OpenWithController {
      * @returns after the host accepted the launch; rejects on any failure.
      */
     launch(target: string, path: string): Promise<void>;
-    /**
-     * Read the enablement of DSH's own open-in-app pair.
-     * @returns the merged state, or `available: false` when this profile exposes no plugin manager.
-     */
-    loadBuiltins(): Promise<OpenWithBuiltinsPayload>;
-    /**
-     * Switch both built-in halves on or off together.
-     * @param enabled - whether the pair should run.
-     * @returns the host's refreshed state.
-     */
-    setBuiltin(enabled: boolean): Promise<OpenWithBuiltinsPayload>;
     /**
      * Mirror one line into the browser console and the host log file.
      * @param level - log level.

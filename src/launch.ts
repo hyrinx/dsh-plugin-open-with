@@ -90,35 +90,15 @@ async function resolveGuiExecutable(ctx: Context, name: string): Promise<string>
 }
 
 /**
- * Resolve one seeded item's bare command name into the path to store.
+ * Resolve a stored item path into the absolute executable it stands for.
  *
- * Used once, when the host writes the very first document. A name that cannot
- * be resolved is kept verbatim: `start` still finds it on PATH, and the user can
- * correct it in the settings page.
- * @param ctx - host plugin context.
- * @param name - the bare command name from the seed.
- * @returns the absolute executable path, or the name unchanged.
- */
-export async function resolveInitialPath(ctx: Context, name: string): Promise<string> {
-  const system = systemLauncherPath(name)
-  if (system !== null) return system
-  try {
-    return await resolveGuiExecutable(ctx, name)
-  } catch {
-    // Swallows a not-found command: the seed keeps its bare name.
-    return name
-  }
-}
-
-/**
- * Resolve any stored item path into the absolute executable it stands for.
- *
- * The settings document can hold either an absolute path (custom items, and
- * presets once seeded) or a bare command name (a preset that was never
- * resolved, e.g. a document written before the resolver existed). Callers that
- * need a real file — icon extraction, and launchers that must not rely on the
- * shell's PATH lookup — consistently resolve through here so every item, preset
- * or custom, is treated alike.
+ * The settings document can hold either an absolute path (custom items, and the
+ * presets once seeded) or a bare command name (a preset that came back through a
+ * default restore, or a hand-edited document). Callers that need a real file —
+ * icon extraction, and launchers that must not rely on the shell's PATH lookup —
+ * consistently resolve through here, so every item is treated alike. A name that
+ * cannot be resolved is returned unchanged: `start` still finds it on PATH, and
+ * the settings page is where the user corrects it.
  * @param ctx - host plugin context.
  * @param path - the item's configured launcher path.
  * @returns the absolute executable path, or the input unchanged when unresolvable.
@@ -126,7 +106,14 @@ export async function resolveInitialPath(ctx: Context, name: string): Promise<st
 export async function resolveExecutable(ctx: Context, path: string): Promise<string> {
   if (path.length === 0) return path
   if (isAbsolute(path)) return path
-  return resolveInitialPath(ctx, path)
+  const system = systemLauncherPath(path)
+  if (system !== null) return system
+  try {
+    return await resolveGuiExecutable(ctx, path)
+  } catch {
+    // Swallows a not-found command: the bare name is kept as it is.
+    return path
+  }
 }
 
 /**

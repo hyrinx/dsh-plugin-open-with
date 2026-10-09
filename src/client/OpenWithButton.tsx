@@ -19,6 +19,7 @@ import { Menu } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { OpenWithItem, OpenWithSettings, OpenWithSettingsPayload } from '../shared.ts'
 import type { OpenWithLogLevel } from './controller.ts'
+import { ItemIcon } from './ItemIcon.tsx'
 import { latestSettings, subscribeSettings } from './settings-events.ts'
 
 /** Session-header slots this button can mount into, chosen by the settings page. */
@@ -68,28 +69,6 @@ function Chevron({ size = 12, open }: { size?: number; open: boolean }) {
         strokeLinejoin="round"
       />
     </svg>
-  )
-}
-
-/** 行内图标；路径缺失或加载失败时留出等宽空白，不用占位图。 */
-function ItemIcon({ src, size = 14 }: { src: string; size?: number }) {
-  // 记的是"哪一个 src 失败了"，不是"失败过"：设置变更会让 revision 前进、
-  // src 换新，粘滞的布尔值会把一次失败永久定格成空白。
-  const [failedSrc, setFailedSrc] = useState<string | null>(null)
-  if (src.length === 0 || failedSrc === src) {
-    return <span style={{ display: 'block', width: size, height: size }} />
-  }
-  return (
-    <img
-      src={src}
-      alt=""
-      aria-hidden="true"
-      width={size}
-      height={size}
-      draggable={false}
-      onError={() => { setFailedSrc(src) }}
-      style={{ display: 'block', width: size, height: size, objectFit: 'contain' }}
-    />
   )
 }
 
@@ -199,7 +178,7 @@ export function OpenWithButton({
         items={visibleItems.length > 0
           ? visibleItems.map(item => ({
               id: item.id,
-              icon: <ItemIcon src={iconUrl(item.id)} />,
+              icon: <ItemIcon src={iconUrl(item.id)} size={14} />,
               label: labelOf(item),
             }))
           : [{ id: '__empty__', label: t('menu.empty'), disabled: true }]}
@@ -227,7 +206,7 @@ export function OpenWithButton({
               onMouseEnter={(e) => { e.currentTarget.style.background = hoverVar }}
               onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
             >
-              <ItemIcon src={current === undefined ? '' : iconUrl(current.id)} />
+              <ItemIcon src={current === undefined ? '' : iconUrl(current.id)} size={14} />
               <span style={{ whiteSpace: 'nowrap' }}>
                 {current === undefined ? t('label') : labelOf(current)}
               </span>

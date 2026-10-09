@@ -24,13 +24,12 @@ import {
   DEFAULT_ORDER,
   defaultSettings,
   normalizeOrder,
-  type OpenWithBuiltinsPayload,
   type OpenWithItem,
-  type OpenWithPeer,
   type OpenWithSettings as OpenWithSettingsDoc,
   type OpenWithSettingsPayload,
   type Placement,
 } from '../shared.ts'
+import { ItemIcon } from './ItemIcon.tsx'
 
 // ── 注入接口 ─────────────────────────────────────────────────────────────────
 
@@ -41,12 +40,6 @@ export interface OpenWithSettingsInjected {
   save: (settings: OpenWithSettingsDoc) => Promise<OpenWithSettingsDoc>
   /** 某一项图标的文档相对 URL。 */
   iconUrl: (id: string) => string
-  /** 两个会话头部槽位里当前已注册的条目（含本插件自己）。 */
-  peers: () => readonly OpenWithPeer[]
-  /** 读取 DSH 内置 open-in-app 这一对的启用状态。 */
-  loadBuiltins: () => Promise<OpenWithBuiltinsPayload>
-  /** 一起切换两半；返回 host 刷新后的状态。 */
-  setBuiltin: (enabled: boolean) => Promise<OpenWithBuiltinsPayload>
 }
 
 export type OpenWithSettingsProps =
@@ -62,30 +55,6 @@ const PLACEMENT_OPTIONS: readonly { value: Placement; labelKey: string }[] = [
 ]
 
 // ── 图标组件 ─────────────────────────────────────────────────────────────────
-
-/** 行内图标；路径缺失或加载失败时留出等宽空白，不用占位图。 */
-function ItemIcon({ src, size = 20 }: { src: string; size?: number }) {
-  // 记住"是哪一个 src 失败了"，而不是"曾经失败过"：设置一变，revision 前进、
-  // src 换新，粘滞的布尔值会把一次 404 永久定格成空白 —— 即使图标其实已经好了。
-  const [failedSrc, setFailedSrc] = useState<string | null>(null)
-  if (src.length === 0 || failedSrc === src) {
-    return <span style={{ display: 'block', width: size, height: size, flexShrink: 0 }} />
-  }
-  return (
-    <img
-      src={src}
-      alt=""
-      width={size}
-      height={size}
-      draggable={false}
-      onError={() => { setFailedSrc(src) }}
-      style={{
-        display: 'block', width: size, height: size, flexShrink: 0,
-        imageRendering: '-webkit-optimize-contrast', userSelect: 'none',
-      }}
-    />
-  )
-}
 
 /** 拖拽插入位置指示线 */
 function InsertionLine({ color }: { color: string }) {
@@ -247,7 +216,7 @@ function ItemForm({
 
 // ── 主组件 ───────────────────────────────────────────────────────────────────
 
-export function OpenWithSettings({ load, save, iconUrl, peers, loadBuiltins, setBuiltin, t }: OpenWithSettingsProps): JSX.Element {
+export function OpenWithSettings({ load, save, iconUrl, t }: OpenWithSettingsProps): JSX.Element {
   const [settings, setSettings] = useState<OpenWithSettingsDoc>(defaultSettings)
   // 统一的添加/编辑表单状态：formItemId 为 null 时隐藏，'__add__' 时添加，否则为编辑项 id
   const [formItemId, setFormItemId] = useState<string | null>(null)
@@ -256,12 +225,6 @@ export function OpenWithSettings({ load, save, iconUrl, peers, loadBuiltins, set
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
   // 按钮顺序输入框的文本态（允许中途为空或只输入负号，提交时才归一化）
   const [orderText, setOrderText] = useState(String(DEFAULT_ORDER))
-  // 两个槽位里已注册组件的快照，用于对照本插件按钮的落点
-  const [peerList, setPeerList] = useState<readonly OpenWithPeer[]>([])
-  // 内置 open-in-app 这一对的启用状态；null = 尚未读取
-  const [builtins, setBuiltins] = useState<OpenWithBuiltinsPayload | null>(null)
-  const [builtinBusy, setBuiltinBusy] = useState(false)
-  const [builtinError, setBuiltinError] = useState('')
   // 最近一次保存失败的原因；空串表示没有失败
   const [saveError, setSaveError] = useState('')
   // 保存的发出序号：并发保存时只允许最后一次发出的请求校正本地状态
@@ -276,12 +239,6 @@ export function OpenWithSettings({ load, save, iconUrl, peers, loadBuiltins, set
   loadRef.current = load
   const saveRef = useRef(save)
   saveRef.current = save
-  const peersRef = useRef(peers)
-  peersRef.current = peers
-  const loadBuiltinsRef = useRef(loadBuiltins)
-  loadBuiltinsRef.current = loadBuiltins
-  const setBuiltinRef = useRef(setBuiltin)
-  setBuiltinRef.current = setBuiltin
 
   // 挂载时从 host 端加载设置
   useEffect(() => {
@@ -289,20 +246,6 @@ export function OpenWithSettings({ load, save, iconUrl, peers, loadBuiltins, set
       setSettings(payload.settings)
     }).catch(() => { })
   }, [])
-
-  // 挂载时快照同槽位组件（其他插件可能稍后才注册，故另给刷新入口）
-  useEffect(() => { setPeerList(peersRef.current()) }, [])
-
-  // 读取内置插件的启用状态；切换后或外部改过 patch 后都用它同步
-  const refreshBuiltins = useCallback(() => {
-    setBuiltinError('')
-    loadBuiltinsRef.current()
-      .then((payload) => { setBuiltins(payload) })
-      .catch((err: unknown) => { setBuiltinError(err instanceof Error ? err.message : String(err)) })
-  }, [])
-
-  // 挂载时读取一次内置插件状态
-  useEffect(() => { refreshBuiltins() }, [refreshBuiltins])
 
   // 外部（加载/保存返回）刷新后的顺序回写输入框
   useEffect(() => { setOrderText(String(settings.order)) }, [settings.order])
@@ -400,7 +343,7 @@ export function OpenWithSettings({ load, save, iconUrl, peers, loadBuiltins, set
   const removeItem = useCallback((id: string) => {
     const nextItems = settings.items.filter((it) => it.id !== id)
     const nextCurrentId = settings.currentId === id
-      ? (nextItems[0]?.id ?? 'code')
+      ? (nextItems[0]?.id ?? '')
       : settings.currentId
     const nextHiddenIds = settings.hiddenIds.filter((hid) => hid !== id)
     persist({ ...settings, currentId: nextCurrentId, items: nextItems, hiddenIds: nextHiddenIds })
@@ -519,19 +462,6 @@ export function OpenWithSettings({ load, save, iconUrl, peers, loadBuiltins, set
     persist({ ...settings, order: parsed })
   }, [orderText, settings, persist])
 
-  // 一起切换内置 open-in-app 的两个半边，并用 host 返回的状态回填
-  const toggleBuiltin = useCallback((enabled: boolean) => {
-    setBuiltinBusy(true)
-    setBuiltinError('')
-    setBuiltinRef.current(enabled).then((payload) => {
-      setBuiltins(payload)
-    }).catch((err: unknown) => {
-      setBuiltinError(err instanceof Error ? err.message : String(err))
-    }).finally(() => {
-      setBuiltinBusy(false)
-    })
-  }, [])
-
   // 表单键盘事件由 ItemForm 内部处理，这里不再持有全局表单草稿。
 
   // ── 样式变量 ──────────────────────────────────────────────────────────────
@@ -621,96 +551,6 @@ export function OpenWithSettings({ load, save, iconUrl, peers, loadBuiltins, set
           />
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', flex: '0 1 auto', minWidth: 0 }}>
-          <label style={{ fontSize: '12px', fontWeight: 500, color: secondaryColor, marginBottom: '6px' }}>
-            {t('settings.builtins.title')}
-          </label>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minHeight: '30px' }}>
-            {builtins === null
-              ? <span style={{ fontSize: '11px', color: tertiaryColor }}>{t('settings.builtins.loading')}</span>
-              : !builtins.available
-                ? <span style={{ fontSize: '11px', color: tertiaryColor }}>
-                  {builtins.stale === true ? t('settings.builtins.stale') : t('settings.builtins.unavailable')}
-                </span>
-                : (() => {
-                  const note = !builtins.present
-                    ? t('settings.builtins.missing')
-                    : builtins.readOnlyReason === 'management-required'
-                      ? t('settings.builtins.readOnlyManagement')
-                      : builtins.readOnlyReason === 'unaddressable'
-                        ? t('settings.builtins.readOnlyUnaddressable')
-                        : ''
-                  return (
-                    <>
-                      <span style={{ fontSize: '11px', color: tertiaryColor }}>
-                        {(builtins.enabled ? t('settings.builtins.on') : t('settings.builtins.off'))
-                          + (note === '' ? '' : ` · ${note}`)}
-                      </span>
-                      <Switch
-                        checked={builtins.enabled}
-                        disabled={!builtins.present || builtins.readOnly || builtinBusy}
-                        onChange={(next: boolean) => { toggleBuiltin(next) }}
-                        label={t('settings.builtins.title')}
-                      />
-                    </>
-                  )
-                })()}
-          </div>
-          {builtinError !== '' && (
-            <span style={{ fontSize: '11px', color: dangerColor, marginTop: '4px' }}>{builtinError}</span>
-          )}
-        </div>
-      </div>
-
-      {/*
-        ── 同槽位组件 ────────────────────────────────────────────────────────
-      */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <label style={{ fontSize: '12px', fontWeight: 500, color: secondaryColor }}>
-            {t('settings.peers.title')}
-          </label>
-          <button
-            type="button"
-            onClick={() => { setPeerList(peersRef.current()) }}
-            style={{
-              height: '22px', padding: '0 8px', border: `1px solid ${borderVar}`,
-              borderRadius: '4px', background: 'transparent', color: secondaryColor,
-              cursor: 'pointer', fontSize: '11px',
-            }}
-          >
-            {t('settings.peers.refresh')}
-          </button>
-        </div>
-        {PLACEMENT_OPTIONS.map((option) => {
-          const rows = peerList.filter((peer) => peer.slot === option.value)
-          return (
-            <div key={option.value} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-              <span style={{ fontSize: '11px', color: tertiaryColor }}>{t(option.labelKey)}</span>
-              {rows.length === 0
-                ? <span style={{ fontSize: '11px', color: tertiaryColor }}>{t('settings.peers.empty')}</span>
-                : rows.map((peer) => (
-                  <div
-                    key={`${peer.slot}-${peer.id}`}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: '8px',
-                      padding: '3px 8px', borderRadius: '4px',
-                      background: peer.self ? brandAlpha : 'transparent',
-                      border: `1px solid ${peer.self ? brandColor : 'transparent'}`,
-                      fontSize: '11px',
-                    }}
-                  >
-                    <span style={{ color: peer.self ? brandColor : textVar, fontWeight: peer.self ? 500 : 400 }}>
-                      {peer.self ? `${peer.id} · ${t('settings.peers.self')}` : peer.id}
-                    </span>
-                    <span style={{ marginLeft: 'auto', color: secondaryColor, fontVariantNumeric: 'tabular-nums' }}>
-                      {`order ${String(peer.order)} · priority ${String(peer.priority)}`}
-                    </span>
-                  </div>
-                ))}
-            </div>
-          )
-        })}
       </div>
 
       {/*

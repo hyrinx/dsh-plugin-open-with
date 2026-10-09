@@ -51,32 +51,6 @@ export interface OpenWithKey {
   'settings.save.failed': string
   /** 设置页 - 按钮顺序标题 */
   'settings.order.title': string
-  /** 设置页 - 同槽位组件标题 */
-  'settings.peers.title': string
-  /** 设置页 - 该槽位暂无组件 */
-  'settings.peers.empty': string
-  /** 设置页 - 刷新同槽位组件 */
-  'settings.peers.refresh': string
-  /** 设置页 - 本插件标记 */
-  'settings.peers.self': string
-  /** 设置页 - 内置插件标题 */
-  'settings.builtins.title': string
-  /** 设置页 - 内置插件读取中 */
-  'settings.builtins.loading': string
-  /** 设置页 - 无插件管理器 */
-  'settings.builtins.unavailable': string
-  /** 设置页 - 宿主半尚未重载 */
-  'settings.builtins.stale': string
-  /** 设置页 - 该半边未加载 */
-  'settings.builtins.missing': string
-  /** 设置页 - 该条目受插件管理器保护 */
-  'settings.builtins.readOnlyManagement': string
-  /** 设置页 - 该条目在 patch 中无法寻址 */
-  'settings.builtins.readOnlyUnaddressable': string
-  /** 设置页 - 已启用 */
-  'settings.builtins.on': string
-  /** 设置页 - 已禁用 */
-  'settings.builtins.off': string
 }
 
 /** English dictionary. */
@@ -107,19 +81,6 @@ export const en: OpenWithKey = {
   'settings.save': 'Save',
   'settings.save.failed': 'Could not save:',
   'settings.order.title': 'Button order',
-  'settings.peers.title': 'Neighbouring components',
-  'settings.peers.empty': 'No other components in this seat',
-  'settings.peers.refresh': 'Refresh',
-  'settings.peers.self': 'this plugin',
-  'settings.builtins.title': 'Built-in plugins',
-  'settings.builtins.loading': 'Reading\u2026',
-  'settings.builtins.unavailable': 'This profile exposes no plugin manager, so nothing can be toggled here.',
-  'settings.builtins.stale': 'The host half has not picked up this route yet; restart DSH to toggle these.',
-  'settings.builtins.missing': 'not loaded',
-  'settings.builtins.readOnlyManagement': 'protected by the plugin manager',
-  'settings.builtins.readOnlyUnaddressable': 'no addressable patch row',
-  'settings.builtins.on': 'enabled',
-  'settings.builtins.off': 'disabled',
 }
 
 /** Chinese dictionary. */
@@ -150,17 +111,4 @@ export const zh: OpenWithKey = {
   'settings.save': '保存',
   'settings.save.failed': '保存失败：',
   'settings.order.title': '按钮顺序',
-  'settings.peers.title': '同槽位组件',
-  'settings.peers.empty': '该槽位暂无其他组件',
-  'settings.peers.refresh': '刷新',
-  'settings.peers.self': '本插件',
-  'settings.builtins.title': '内置插件',
-  'settings.builtins.loading': '读取中…',
-  'settings.builtins.unavailable': '当前 profile 未暴露插件管理器，无法在此切换。',
-  'settings.builtins.stale': '宿主端尚未加载这条路由，重启 DSH 后即可切换。',
-  'settings.builtins.missing': '未加载',
-  'settings.builtins.readOnlyManagement': '受插件管理器保护，无法切换',
-  'settings.builtins.readOnlyUnaddressable': 'patch 中无可寻址条目，无法切换',
-  'settings.builtins.on': '已启用',
-  'settings.builtins.off': '已禁用',
 }

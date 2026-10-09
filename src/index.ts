@@ -23,9 +23,8 @@ import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-host-webserver'
 import type {} from '@deepseek-ai/dsh-subprocess'
 import {
-  OPEN_WITH_BUILTIN_MODULES, OPEN_WITH_BUILTINS_PATH, OPEN_WITH_ICON_PREFIX_PATH, OPEN_WITH_LOG_PATH,
+  OPEN_WITH_ICON_PREFIX_PATH, OPEN_WITH_LOG_PATH,
   OPEN_WITH_OPEN_PATH, OPEN_WITH_SETTINGS_PATH, defaultSettings, normalizeSettings,
-  type OpenWithBuiltinState, type OpenWithBuiltinsPayload,
   type OpenWithSettings, type OpenWithSettingsPayload,
 } from './shared.ts'
 import { logFileOf, openWithDirOf, readSettings, settingsFileOf, writeSettings } from './storage.ts'
@@ -121,20 +120,6 @@ function stringField(body: unknown, key: string): string | undefined {
   if (body === null || typeof body !== 'object') return undefined
   const value = (body as Record<string, unknown>)[key]
   return typeof value === 'string' ? value : undefined
-}
-
-/** The inventory row members this plugin reads; the boot package owns the full row. */
-interface PluginInfoLike {
-  readonly entryId: string
-  readonly moduleName: string
-  readonly enabled: boolean
-  readonly readOnlyReason?: string
-}
-
-/** The plugin-manager members used to reflect and flip the built-in halves. */
-interface PluginManagerLike {
-  listPlugins(): Promise<readonly PluginInfoLike[]>
-  setPluginEnabled(id: string, enabled: boolean): Promise<unknown>
 }
 
 /** Register the settings, icon, open, and log routes behind the connection trust fence. */
@@ -368,124 +353,4 @@ export function apply(ctx: Context): void {
       sendJson(res, 200, { ok: true })
     },
   }), `open-with: ${OPEN_WITH_LOG_PATH}`)
-
-  /** The profile's plugin manager, or undefined when this profile exposes none. */
-  const pluginManager = (): PluginManagerLike | undefined => {
-    const service = ctx.get('pluginManager') as PluginManagerLike | undefined
-    return typeof service?.listPlugins === 'function' ? service : undefined
-  }
-
-  /** Observe the built-in pair in the live plugin inventory, as one unit. */
-  const readBuiltins = async (manager: PluginManagerLike): Promise<OpenWithBuiltinState> => {
-    const rows = await manager.listPlugins()
-    const halves = OPEN_WITH_BUILTIN_MODULES.map(moduleName =>
-      rows.find(entry => entry.moduleName === moduleName))
-    const reason = halves.map(row => row?.readOnlyReason).find(value => value !== undefined)
-    return {
-      present: halves.every(row => row !== undefined),
-      enabled: halves.every(row => row?.enabled === true),
-      readOnly: reason !== undefined,
-      ...(reason === 'management-required' || reason === 'unaddressable' ? { readOnlyReason: reason } : {}),
-    }
-  }
-
-  ctx.effect(() => ctx.webServer.register({
-    kind: 'exact',
-    path: OPEN_WITH_BUILTINS_PATH,
-    handler: async (req: IncomingMessage, res: ServerResponse) => {
-      if (rejected(req, res)) return
-      const manager = pluginManager()
-      if (req.method === 'GET') {
-        if (manager === undefined) {
-          const payload: OpenWithBuiltinsPayload = {
-            available: false, present: false, enabled: false, readOnly: false,
-          }
-          sendJson(res, 200, payload)
-          return
-        }
-        try {
-          const state = await readBuiltins(manager)
-          logger.info('built-in plugin state read', {
-            present: state.present,
-            enabled: state.enabled,
-            readOnly: state.readOnlyReason ?? false,
-          })
-          const payload: OpenWithBuiltinsPayload = { available: true, ...state }
-          sendJson(res, 200, payload)
-        } catch (err) {
-          logger.error('plugin inventory read failed', err)
-          sendJson(res, 502, { code: 'inventory-failed', message: 'could not read the plugin inventory' })
-        }
-        return
-      }
-      if (req.method !== 'POST') {
-        sendMethodNotAllowed(res, 'GET, POST')
-        return
-      }
-      if (manager === undefined) {
-        sendJson(res, 409, { code: 'unavailable', message: 'this profile exposes no plugin manager' })
-        return
-      }
-      const body = await readJsonBody(req, res)
-      if (body === undefined) return
-      const enabled = body !== null && typeof body === 'object'
-        ? (body as { enabled?: unknown }).enabled
-        : undefined
-      if (typeof enabled !== 'boolean') {
-        sendJson(res, 400, {
-          code: 'bad-request',
-          message: 'request body must be JSON with a boolean "enabled"',
-        })
-        return
-      }
-      try {
-        // Resolve and vet every half first: a refusal must leave both untouched,
-        // so a toggle that cannot address one half never half-applies.
-        const rows = await manager.listPlugins()
-        const halves: PluginInfoLike[] = []
-        for (const moduleName of OPEN_WITH_BUILTIN_MODULES) {
-          const row = rows.find(entry => entry.moduleName === moduleName)
-          if (row === undefined) {
-            sendJson(res, 404, { code: 'not-found', message: `not loaded in this profile: ${moduleName}` })
-            return
-          }
-          if (row.readOnlyReason !== undefined) {
-            sendJson(res, 409, { code: row.readOnlyReason, message: `this entry is ${row.readOnlyReason}` })
-            return
-          }
-          halves.push(row)
-        }
-        for (const row of halves) await manager.setPluginEnabled(row.entryId, enabled)
-        logger.info('built-in plugins toggled', { modules: OPEN_WITH_BUILTIN_MODULES, enabled })
-        const payload: OpenWithBuiltinsPayload = { available: true, ...await readBuiltins(manager) }
-        sendJson(res, 200, payload)
-      } catch (err) {
-        logger.error('built-in plugin toggle failed', { modules: OPEN_WITH_BUILTIN_MODULES, err })
-        sendJson(res, 502, { code: 'toggle-failed', message: 'could not change the built-in open-in-app plugins' })
-      }
-    },
-  }), `open-with: ${OPEN_WITH_BUILTINS_PATH}`)
-
-  // 首次加载时自动关闭内置 open-in-app 插件，避免与本插件同时出现两个打开按钮
-  ctx.effect(() => {
-    const manager = pluginManager()
-    if (manager === undefined) return
-    manager.listPlugins().then((rows) => {
-      const halves = OPEN_WITH_BUILTIN_MODULES
-        .map(moduleName => rows.find(entry => entry.moduleName === moduleName))
-        .filter((row): row is PluginInfoLike => row !== undefined)
-      if (halves.length === 0) return
-      const hasReadOnly = halves.some(row => row.readOnlyReason !== undefined)
-      if (hasReadOnly) {
-        logger.info('built-in plugins are read-only, skipping auto-disable')
-        return
-      }
-      const allDisabled = halves.every(row => !row.enabled)
-      if (allDisabled) return
-      return Promise.all(halves.map(row => manager.setPluginEnabled(row.entryId, false)))
-        .then(() => { logger.info('auto-disabled built-in plugins', { modules: OPEN_WITH_BUILTIN_MODULES }) })
-    }).catch((err: unknown) => {
-      logger.error('auto-disable built-in plugins failed', err)
-    })
-  })
 }

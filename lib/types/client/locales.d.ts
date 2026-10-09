@@ -20,6 +20,10 @@ export interface OpenWithKey {
     'settings.current.title': string;
     /** 设置页 - 所有项标题 */
     'settings.items.title': string;
+    /** 设置页 - 恢复默认启动器列表 */
+    'settings.items.restore': string;
+    /** 设置页 - 恢复默认的两步确认文案 */
+    'settings.items.restoreConfirm': string;
     /** 设置页 - 名称输入框占位 */
     'settings.edit.namePlaceholder': string;
     /** 设置页 - 路径输入框占位 */

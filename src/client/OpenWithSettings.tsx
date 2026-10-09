@@ -20,6 +20,7 @@ import {
 import { Switch } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import {
+  DEFAULT_ITEMS,
   DEFAULT_ORDER,
   defaultSettings,
   normalizeOrder,
@@ -64,8 +65,10 @@ const PLACEMENT_OPTIONS: readonly { value: Placement; labelKey: string }[] = [
 
 /** 行内图标；路径缺失或加载失败时留出等宽空白，不用占位图。 */
 function ItemIcon({ src, size = 20 }: { src: string; size?: number }) {
-  const [failed, setFailed] = useState(false)
-  if (src.length === 0 || failed) {
+  // 记住"是哪一个 src 失败了"，而不是"曾经失败过"：设置一变，revision 前进、
+  // src 换新，粘滞的布尔值会把一次 404 永久定格成空白 —— 即使图标其实已经好了。
+  const [failedSrc, setFailedSrc] = useState<string | null>(null)
+  if (src.length === 0 || failedSrc === src) {
     return <span style={{ display: 'block', width: size, height: size, flexShrink: 0 }} />
   }
   return (
@@ -75,7 +78,7 @@ function ItemIcon({ src, size = 20 }: { src: string; size?: number }) {
       width={size}
       height={size}
       draggable={false}
-      onError={() => { setFailed(true) }}
+      onError={() => { setFailedSrc(src) }}
       style={{
         display: 'block', width: size, height: size, flexShrink: 0,
         imageRendering: '-webkit-optimize-contrast', userSelect: 'none',
@@ -263,6 +266,9 @@ export function OpenWithSettings({ load, save, iconUrl, peers, loadBuiltins, set
   const [saveError, setSaveError] = useState('')
   // 保存的发出序号：并发保存时只允许最后一次发出的请求校正本地状态
   const saveSeq = useRef(0)
+  // 「恢复默认」的两步确认：首次点击只是待命，再点一下才真正执行
+  const [restoreArmed, setRestoreArmed] = useState(false)
+  const restoreTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // 注入面每次渲染都会给出新的函数引用：固定到 ref，避免加载 effect 反复触发
   // （反复 GET 会与保存的 POST 竞态，把刚写入的值覆盖回旧值）。
@@ -334,6 +340,56 @@ export function OpenWithSettings({ load, save, iconUrl, peers, loadBuiltins, set
           })
       })
   }, [])
+
+  /** 收起「恢复默认」的待命态（超时、真正执行、或组件卸载时都要收）。 */
+  const disarmRestore = useCallback(() => {
+    if (restoreTimer.current !== null) {
+      clearTimeout(restoreTimer.current)
+      restoreTimer.current = null
+    }
+    setRestoreArmed(false)
+  }, [])
+
+  // 待命计时器必须在卸载时清掉：留着就是一次卸载后的 setState。
+  useEffect(() => disarmRestore, [disarmRestore])
+
+  /**
+   * 把启动器列表恢复成内置的默认项。
+   *
+   * 只动 `items` —— 按钮位置与按钮顺序属于另外两节，各有自己的控件，不该被
+   * 这个按钮顺带重置。
+   *
+   * 两个引用要跟着收敛，否则会留下指向已不存在项的悬空 id：
+   * - `currentId` 指向被移除的自定义项时，回落到第一个默认项；
+   * - `hiddenIds` 中属于自定义项的 id 一并清掉，而用户对**默认项**的隐藏
+   *   选择保留 —— 那是他的意愿，不在这次重置的范围内。
+   */
+  const restoreDefaults = useCallback(() => {
+    const defaults = DEFAULT_ITEMS.map((item) => ({ ...item }))
+    const ids = new Set(defaults.map((item) => item.id))
+    persist({
+      ...settings,
+      items: defaults,
+      currentId: ids.has(settings.currentId) ? settings.currentId : defaults[0].id,
+      hiddenIds: settings.hiddenIds.filter((id) => ids.has(id)),
+    })
+  }, [settings, persist])
+
+  // 首次点击进入待命（3 秒后自动收起），第二次点击才执行 —— 这个按钮会丢掉
+  // 所有自定义启动器，一次误触不该造成损失。
+  const onRestoreClick = useCallback(() => {
+    if (restoreArmed) {
+      disarmRestore()
+      restoreDefaults()
+      return
+    }
+    if (restoreTimer.current !== null) clearTimeout(restoreTimer.current)
+    setRestoreArmed(true)
+    restoreTimer.current = setTimeout(() => {
+      restoreTimer.current = null
+      setRestoreArmed(false)
+    }, 3000)
+  }, [restoreArmed, disarmRestore, restoreDefaults])
 
   // 选择当前项（点击卡片切换）
   const selectCurrent = useCallback((item: OpenWithItem) => {
@@ -665,9 +721,27 @@ export function OpenWithSettings({ load, save, iconUrl, peers, loadBuiltins, set
         onDragOver={onGroupDragOver}
         onDrop={onGroupDrop}
       >
-        <label style={{ fontSize: '12px', fontWeight: 500, color: secondaryColor, marginBottom: '6px' }}>
-          {t('settings.items.title')}
-        </label>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+          <label style={{ fontSize: '12px', fontWeight: 500, color: secondaryColor }}>
+            {t('settings.items.title')}
+          </label>
+          <button
+            type="button"
+            onClick={onRestoreClick}
+            style={{
+              marginLeft: 'auto',
+              height: '22px', padding: '0 8px',
+              border: `1px solid ${restoreArmed ? dangerColor : borderVar}`,
+              borderRadius: '4px', background: 'transparent',
+              color: restoreArmed ? dangerColor : secondaryColor,
+              cursor: 'pointer',
+              fontSize: '11px',
+              transition: 'color 0.15s, border-color 0.15s',
+            }}
+          >
+            {t(restoreArmed ? 'settings.items.restoreConfirm' : 'settings.items.restore')}
+          </button>
+        </div>
 
         {allItems.length === 0 && formItemId !== '__add__' && (
           <span style={{ fontSize: '12px', color: tertiaryColor, padding: '4px 0' }}>

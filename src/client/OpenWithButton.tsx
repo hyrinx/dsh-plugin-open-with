@@ -18,7 +18,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Menu } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { OpenWithItem, OpenWithSettings, OpenWithSettingsPayload } from '../shared.ts'
-import { FALLBACK_ICON_DATA_URL } from './fallback-icon.ts'
 import type { OpenWithLogLevel } from './controller.ts'
 import { latestSettings, subscribeSettings } from './settings-events.ts'
 
@@ -72,19 +71,23 @@ function Chevron({ size = 12, open }: { size?: number; open: boolean }) {
   )
 }
 
-/** One item's icon, falling back to the bundled glyph when nothing loads. */
+/** 行内图标；路径缺失或加载失败时留出等宽空白，不用占位图。 */
 function ItemIcon({ src, size = 14 }: { src: string; size?: number }) {
-  const [failed, setFailed] = useState(false)
-  const source = src.length > 0 && !failed ? src : FALLBACK_ICON_DATA_URL
+  // 记的是"哪一个 src 失败了"，不是"失败过"：设置变更会让 revision 前进、
+  // src 换新，粘滞的布尔值会把一次失败永久定格成空白。
+  const [failedSrc, setFailedSrc] = useState<string | null>(null)
+  if (src.length === 0 || failedSrc === src) {
+    return <span style={{ display: 'block', width: size, height: size }} />
+  }
   return (
     <img
-      src={source}
+      src={src}
       alt=""
       aria-hidden="true"
       width={size}
       height={size}
       draggable={false}
-      onError={() => { setFailed(true) }}
+      onError={() => { setFailedSrc(src) }}
       style={{ display: 'block', width: size, height: size, objectFit: 'contain' }}
     />
   )

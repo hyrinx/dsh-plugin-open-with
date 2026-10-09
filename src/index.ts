@@ -24,7 +24,7 @@ import type {} from '@deepseek-ai/dsh-host-webserver'
 import type {} from '@deepseek-ai/dsh-subprocess'
 import {
   OPEN_WITH_BUILTIN_MODULES, OPEN_WITH_BUILTINS_PATH, OPEN_WITH_ICON_PREFIX_PATH, OPEN_WITH_LOG_PATH,
-  OPEN_WITH_OPEN_PATH, OPEN_WITH_SETTINGS_PATH, defaultSettings,
+  OPEN_WITH_OPEN_PATH, OPEN_WITH_SETTINGS_PATH, defaultSettings, normalizeSettings,
   type OpenWithBuiltinState, type OpenWithBuiltinsPayload,
   type OpenWithSettings, type OpenWithSettingsPayload,
 } from './shared.ts'
@@ -155,22 +155,57 @@ export function apply(ctx: Context): void {
   }
 
   /**
+   * Per-path resolution cache, keyed by the path **as stored**.
+   *
+   * A bare command name costs a subprocess round trip to resolve (`code`),
+   * while the three system launchers are pure arithmetic, so caching removes
+   * that cost from every icon request. The answer only moves if PATH changes
+   * mid-session, which an already-running app would not pick up anyway.
+   * {@link resolveExecutable} never rejects — it falls back to its input — so
+   * a failed resolution cannot poison this map.
+   */
+  const resolvedPaths = new Map<string, Promise<string>>()
+  const resolvePath = (path: string): Promise<string> => {
+    let cached = resolvedPaths.get(path)
+    if (cached === undefined) {
+      cached = resolveExecutable(ctx, path)
+      resolvedPaths.set(path, cached)
+    }
+    return cached
+  }
+
+  /**
+   * Fill in the absolute executable behind every bare command name.
+   *
+   * The document invariant is "a stored path is the file that will be started":
+   * the first seed has always resolved the presets, and icon extraction and the
+   * launcher both read that stored path directly. Restoring the defaults puts
+   * the bare names back, so every write re-establishes it here. A name that
+   * does not resolve is kept verbatim — `start` still finds it on PATH, and the
+   * settings page is where the user corrects it.
+   * @param settings - a normalized document.
+   * @returns a copy whose items all carry resolved paths.
+   */
+  const resolveSettingsPaths = async (settings: OpenWithSettings): Promise<OpenWithSettings> => ({
+    ...settings,
+    items: await Promise.all(settings.items.map(async (item) => ({
+      ...item,
+      path: await resolvePath(item.path),
+    }))),
+  })
+
+  /**
    * The stored document, seeding one on the very first read.
    *
-   * Presets seed with bare command names; that first read resolves each into an
-   * absolute executable path and writes it back once. Every later read returns
-   * the saved document as-is, so icon extraction and the launch both read the
-   * same saved absolute path, and settings edits never re-resolve.
+   * Presets seed with bare command names; this resolves each into an absolute
+   * executable path and writes it back once. Every later read returns the saved
+   * document as-is — writes are what keep the paths resolved, see
+   * {@link resolveSettingsPaths}.
    */
   const loadSettings = async (): Promise<OpenWithSettings> => {
     const stored = readSettings(settingsFile)
     if (stored !== null) return stored
-    const seed = defaultSettings()
-    const items = await Promise.all(seed.items.map(async (item) => ({
-      ...item,
-      path: await resolveExecutable(ctx, item.path),
-    })))
-    const seeded: OpenWithSettings = { ...seed, items }
+    const seeded = await resolveSettingsPaths(defaultSettings())
     try {
       writeSettings(settingsFile, seeded)
     } catch (err) {
@@ -213,7 +248,12 @@ export function apply(ctx: Context): void {
         return
       }
       try {
-        const saved = writeSettings(settingsFile, (body as { settings: unknown }).settings)
+        // Normalize first, then resolve: restoring the defaults submits bare
+        // command names, and storing them unresolved is what leaves the icon
+        // route with nothing to read. `writeSettings` normalizes again, which
+        // is idempotent.
+        const requested = normalizeSettings((body as { settings: unknown }).settings)
+        const saved = writeSettings(settingsFile, await resolveSettingsPaths(requested))
         logger.info('settings saved', { file: settingsFile })
         sendJson(res, 200, { settings: saved })
       } catch (err) {
@@ -240,9 +280,10 @@ export function apply(ctx: Context): void {
         sendNoIcon(res, id)
         return
       }
-      // loadSettings keeps item.path as an absolute executable path, so the
-      // icon is extracted from exactly the file a launch would start.
-      const bytes = await iconOf(item.path)
+      // Resolve through the shared resolver. The stored path is not always a
+      // file: restoring the defaults writes preset bare command names back, and
+      // a bare name cannot be read as an icon at all.
+      const bytes = await iconOf(await resolvePath(item.path))
       if (bytes === null || bytes.length === 0) {
         sendNoIcon(res, id)
         return
@@ -294,7 +335,10 @@ export function apply(ctx: Context): void {
         return
       }
       try {
-        launchItem(ctx, item.id, item.path, workspace, item.passCwd !== false, logger)
+        // Resolve before spawning. `start`-ing a bare `code` finds the `.cmd`
+        // wrapper on PATH, which flashes a console window before the GUI shows;
+        // the resolver lands on the `.exe` in the same directory instead.
+        launchItem(ctx, item.id, await resolvePath(item.path), workspace, item.passCwd !== false, logger)
         sendJson(res, 200, { ok: true })
       } catch (err) {
         logger.error('launch failed', { target, err })

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Open With",
+    "description": "Capsule split-button in the session header: open the workspace in VS Code, a terminal, or the file explorer. Custom launchers supported."
+  }
+}

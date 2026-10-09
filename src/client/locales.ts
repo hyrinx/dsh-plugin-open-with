@@ -20,6 +20,10 @@ export interface OpenWithKey {
   'settings.current.title': string
   /** 设置页 - 所有项标题 */
   'settings.items.title': string
+  /** 设置页 - 恢复默认启动器列表 */
+  'settings.items.restore': string
+  /** 设置页 - 恢复默认的两步确认文案 */
+  'settings.items.restoreConfirm': string
   /** 设置页 - 名称输入框占位 */
   'settings.edit.namePlaceholder': string
   /** 设置页 - 路径输入框占位 */
@@ -87,6 +91,8 @@ export const en: OpenWithKey = {
   'settings.placement.utilities': 'Right utilities',
   'settings.current.title': 'Current',
   'settings.items.title': 'Items',
+  'settings.items.restore': 'Restore defaults',
+  'settings.items.restoreConfirm': 'Confirm restore?',
   'settings.edit.namePlaceholder': 'App name',
   'settings.edit.pathPlaceholder': 'Executable path (.exe)',
   'settings.items.add': 'Add',
@@ -128,6 +134,8 @@ export const zh: OpenWithKey = {
   'settings.placement.utilities': '右侧工具区',
   'settings.current.title': '当前项',
   'settings.items.title': '启动项',
+  'settings.items.restore': '恢复默认',
+  'settings.items.restoreConfirm': '确认恢复？',
   'settings.edit.namePlaceholder': '应用名称',
   'settings.edit.pathPlaceholder': '可执行文件路径 (.exe)',
   'settings.items.add': '添加',

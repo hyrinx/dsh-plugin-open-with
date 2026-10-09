@@ -116,11 +116,38 @@ dsh --profile web plugin add "link:$($PWD.Path)"
 
 ```sh
 npm install
-npm run build       # tsdown 产出 lib/ 主/客两端 bundle + lib/types/*.d.ts
+npm run build       # tsdown 出主/客两端 bundle，tsc 出 lib/types/*.d.ts
 npm run typecheck   # tsc -p tsconfig.json --noEmit
 npm pack            # 发布前预览 tarball 内容
 npm publish --access public
 ```
+
+**目录结构**（双半包：一个 host 半 + 一个 `dsh.client` 浏览器半）：
+
+```
+dsh-plugin-open-with/
+├── src/
+│   ├── index.ts          host 半入口：四条 webServer 路由 + connection 信任栅栏
+│   ├── shared.ts         两半共享的协议、设置模型与归一化
+│   ├── storage.ts        settings.json 原子读写
+│   ├── logger.ts         host.log 落盘与轮转
+│   ├── launch.ts         各目标的 spawn 配方
+│   ├── icons.ts          从可执行文件提取图标
+│   ├── dsh-home.ts       $DSH_HOME / profile 路径解析
+│   └── client/           浏览器半：入口、UI、RPC 载体、词典
+├── locale/               插件展示元数据（DSH 插件管理页的标题与描述来源）
+├── lib/                  构建产物，勿手改（index.js / client.js / types/）
+├── cordis.patch.yml      bundle 补丁，把本插件插入组合树
+├── tsdown.config.ts      双配置：host 出 ESM，client 出 ModuleLoader 闭包工厂
+└── tsconfig.json         只出声明（emitDeclarationOnly → lib/types/）
+```
+
+`lib/` 与 `package.json#exports` 的子路径一一对应：`.` → `lib/index.js`、
+`./client` → `lib/client.js`、`./locale/*.json` → `locale/*.json`。
+发布物由 `files` 精确列举，所以 `lib/client.js.map` 只留在本地供调试、不进 tarball。
+
+展示名与描述只来自 `locale/*.json` 的 `meta`（`package.json` 的 `name`/`description`
+仅作 fallback），`locale/en.json` 是 DSH 的发现基线，缺了整包元数据就不生效。
 
 **如何新增一个启动器**：
 

@@ -17,6 +17,7 @@ import {
   type OpenWithPeer, type OpenWithSettings, type Placement,
 } from '../shared.ts'
 import { OpenWithController, type OpenWithLogLevel } from './controller.ts'
+import { publishSettings, settingsRevision } from './settings-events.ts'
 import { OpenWithButton } from './OpenWithButton.tsx'
 import type { HeaderActionSlot } from './OpenWithButton.tsx'
 import { OpenWithSettings as OpenWithSettingsPanel } from './OpenWithSettings.tsx'
@@ -48,8 +49,14 @@ export function apply(ctx: ClientContext): void {
 
   const controller = new OpenWithController()
 
-  /** 某一项图标的文档相对 URL。 */
-  const iconUrl = (id: string): string => `${OPEN_WITH_ICON_PREFIX_ROUTE}/${encodeURIComponent(id)}`
+  /**
+   * 某一项图标的文档相对 URL。
+   *
+   * 末尾拼上广播版本号：图标路由按 id 寻址，id 在改路径时并不改变，若不换
+   * URL，`<img>` 会一直显示改动前的字节。
+   */
+  const iconUrl = (id: string): string =>
+    `${OPEN_WITH_ICON_PREFIX_ROUTE}/${encodeURIComponent(id)}?v=${String(settingsRevision())}`
 
   /** 取会话工作区目录；会话未知时返回 undefined。 */
   const getCwd = (sessionId: string): string | undefined => {
@@ -150,6 +157,10 @@ export function apply(ctx: ClientContext): void {
           const saved = await controller.save(settings)
           // 位置或顺序可能在设置页被改动，立即把按钮迁到位。
           mount(saved.placement, saved.order)
+          // 把 host 归一化后的文档推给同页的胶囊按钮：它据此立即重渲染，
+          // 不用等用户点开菜单再发一次读请求。放在 mount 之后，重建出来的
+          // 按钮便能从广播缓存里拿到新文档，不闪空菜单。
+          publishSettings(saved)
           return saved
         },
         iconUrl,

@@ -43,6 +43,8 @@ export interface OpenWithKey {
   'settings.edit': string
   /** 设置页 - 保存按钮 */
   'settings.save': string
+  /** 设置页 - 保存失败提示前缀 */
+  'settings.save.failed': string
   /** 设置页 - 按钮顺序标题 */
   'settings.order.title': string
   /** 设置页 - 同槽位组件标题 */
@@ -97,6 +99,7 @@ export const en: OpenWithKey = {
   'settings.dragTip': 'Drag to reorder',
   'settings.edit': 'Edit',
   'settings.save': 'Save',
+  'settings.save.failed': 'Could not save:',
   'settings.order.title': 'Button order',
   'settings.peers.title': 'Neighbouring components',
   'settings.peers.empty': 'No other components in this seat',
@@ -137,6 +140,7 @@ export const zh: OpenWithKey = {
   'settings.dragTip': '拖动以调整排序',
   'settings.edit': '编辑',
   'settings.save': '保存',
+  'settings.save.failed': '保存失败：',
   'settings.order.title': '按钮顺序',
   'settings.peers.title': '同槽位组件',
   'settings.peers.empty': '该槽位暂无其他组件',

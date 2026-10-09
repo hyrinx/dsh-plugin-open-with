@@ -4,14 +4,6 @@ export interface OpenWithKey {
     label: string;
     /** Hover tooltip on the action half of the split button. */
     tooltip: string;
-    /** Dropdown label: open VS Code. */
-    'target.code': string;
-    /** Dropdown label: open terminal/cmd. */
-    'target.cmd': string;
-    /** Dropdown label: open file explorer/folder. */
-    'target.explorer': string;
-    /** Dropdown label: open PowerShell. */
-    'target.powershell': string;
     /** Aria-label for the chevron picker. */
     'picker.aria': string;
     /** Aria-label for the picker menu. */
@@ -26,20 +18,20 @@ export interface OpenWithKey {
     'settings.placement.utilities': string;
     /** 设置页 - 当前项标题 */
     'settings.current.title': string;
-    /** 设置页 - 自定义添加标题 */
-    'settings.custom.title': string;
+    /** 设置页 - 所有项标题 */
+    'settings.items.title': string;
     /** 设置页 - 名称输入框占位 */
-    'settings.custom.namePlaceholder': string;
+    'settings.edit.namePlaceholder': string;
     /** 设置页 - 路径输入框占位 */
-    'settings.custom.pathPlaceholder': string;
+    'settings.edit.pathPlaceholder': string;
     /** 设置页 - 添加按钮 */
-    'settings.custom.add': string;
-    /** 设置页 - 预设项标题 */
-    'settings.preset.title': string;
+    'settings.items.add': string;
+    /** 设置页 - 是否把会话目录作为参数传给启动器 */
+    'settings.edit.passCwd': string;
     /** 设置页 - 删除按钮 */
     'settings.delete': string;
     /** 设置页 - 无自定义项 */
-    'settings.noCustom': string;
+    'settings.noItems': string;
     /** 设置页 - 取消按钮 */
     'settings.cancel': string;
     /** 设置页 - 在胶囊中隐藏/显示 */
@@ -51,6 +43,8 @@ export interface OpenWithKey {
     'settings.edit': string;
     /** 设置页 - 保存按钮 */
     'settings.save': string;
+    /** 设置页 - 保存失败提示前缀 */
+    'settings.save.failed': string;
     /** 设置页 - 按钮顺序标题 */
     'settings.order.title': string;
     /** 设置页 - 同槽位组件标题 */
@@ -63,8 +57,6 @@ export interface OpenWithKey {
     'settings.peers.self': string;
     /** 设置页 - 内置插件标题 */
     'settings.builtins.title': string;
-    /** 设置页 - 内置插件说明 */
-    'settings.builtins.hint': string;
     /** 设置页 - 内置插件读取中 */
     'settings.builtins.loading': string;
     /** 设置页 - 无插件管理器 */

@@ -1,64 +1,72 @@
 /**
- * Windows launch recipes and subprocess dispatch (presets and custom items).
+ * Windows launch recipe, initial-path resolution, and subprocess dispatch.
  *
- * Every preset is dispatched through `cmd /c start` rather than `cmd /c <exe>`:
- * `cmd /c` strips a leading quote from the command string, truncating paths like
- * `C:\Program Files\...`; with `start` as the command word cmd leaves the
+ * Every item — terminal, editor, file manager, or a user's own entry — takes
+ * one shape: the program path, optionally followed by the directory to open.
+ * Nothing about an item's origin changes how it starts.
+ *
+ * The whole command runs behind `cmd /c start` rather than `cmd /c <exe>`:
+ * `cmd /c` strips a leading quote from the command string, truncating paths
+ * like `C:\Program Files\...`; with `start` as the command word cmd leaves the
  * quoting alone, and `start` itself treats the first `""` as the window title
  * and the rest as program plus arguments.
  *
- * Terminal targets use `start /D <cwd>` to set the new window's working
- * directory, avoiding the nested-quote damage a `cd /d "<path>"` prefix would
- * suffer. File Explorer is spawned directly: its path argument needs no shell
- * parsing at all.
+ * Folders reach File Explorer through `start` rather than a direct
+ * `explorer.exe` spawn: an explorer spawned straight from this process inherits
+ * its stdio pipes and window flags and exits 1 without ever showing a window,
+ * whereas `start` hands the directory to the shell's own opener, which is how
+ * DSH's own open-in-app opens folders.
  *
  * A launch that has been handed to `start` is fire-and-forget, so the plugin
  * only records the first-exit diagnostics instead of holding a successful
  * launch open.
  */
 import type { Context } from '@deepseek-ai/cordis';
-import type { LaunchTarget } from './shared.ts';
 import type { OpenWithLogger } from './logger.ts';
 /**
- * Resolve one preset's executable path.
+ * Resolve one seeded item's bare command name into the path to store.
+ *
+ * Used once, when the host writes the very first document. A name that cannot
+ * be resolved is kept verbatim: `start` still finds it on PATH, and the user can
+ * correct it in the settings page.
  * @param ctx - host plugin context.
- * @param target - preset target.
- * @returns the absolute executable path.
+ * @param name - the bare command name from the seed.
+ * @returns the absolute executable path, or the name unchanged.
  */
-export declare function resolvePresetExecutable(ctx: Context, target: LaunchTarget): Promise<string>;
+export declare function resolveInitialPath(ctx: Context, name: string): Promise<string>;
 /**
- * Build the argv for one custom item launch. The item's path is handed to
- * `start` verbatim (a bare `cmd /c <path>` would strip its quotes).
- * @param itemPath - the item's configured launcher path.
+ * Resolve any stored item path into the absolute executable it stands for.
+ *
+ * The settings document can hold either an absolute path (custom items, and
+ * presets once seeded) or a bare command name (a preset that was never
+ * resolved, e.g. a document written before the resolver existed). Callers that
+ * need a real file — icon extraction, and launchers that must not rely on the
+ * shell's PATH lookup — consistently resolve through here so every item, preset
+ * or custom, is treated alike.
+ * @param ctx - host plugin context.
+ * @param path - the item's configured launcher path.
+ * @returns the absolute executable path, or the input unchanged when unresolvable.
+ */
+export declare function resolveExecutable(ctx: Context, path: string): Promise<string>;
+/**
+ * Build the argv for one launch: `<program> [cwd]` behind `cmd /c start`.
+ *
+ * The `start` command word is what keeps a path like `C:\Program Files\...`
+ * intact (a bare `cmd /c <path>` strips its leading quote), and the leading
+ * `""` is the window title that `start` would otherwise mistake the program
+ * path for.
+ * @param program - the item's launcher path.
+ * @param cwd - directory to hand the launcher; omitted when it takes none.
  * @returns the argv to spawn.
  */
-export declare function customArgv(itemPath: string): readonly string[];
+export declare function launchArgv(program: string, cwd?: string): readonly string[];
 /**
- * Spawn one launcher and report its first-exit diagnostics asynchronously.
- *
- * `SubprocessHandle` exposes no pid, so the log records the exit outcome
- * rather than a process identity.
- * @param ctx - host plugin context.
- * @param argv - full command; `argv[0]` is the program, never shell-interpreted.
- * @param cwd - the child's working directory (the session's workspace).
- * @param label - log label identifying the target.
- * @param logger - plugin logger.
- */
-export declare function spawnDetached(ctx: Context, argv: readonly string[], cwd: string, label: string, logger: OpenWithLogger): void;
-/**
- * Launch one preset on one workspace directory.
- * @param ctx - host plugin context.
- * @param target - preset target.
- * @param cwd - the session's workspace directory.
- * @param logger - plugin logger.
- */
-export declare function launchPreset(ctx: Context, target: LaunchTarget, cwd: string, logger: OpenWithLogger): Promise<void>;
-/**
- * Launch one custom item on one workspace directory.
+ * Launch one item on one workspace directory.
  * @param ctx - host plugin context.
  * @param itemId - the item's id, for logging.
  * @param itemPath - the item's configured launcher path.
- * @param cwd - the session's workspace directory.
+ * @param cwd - the session's workspace directory; always the child's working directory.
+ * @param passCwd - whether the directory is also handed to the launcher as its argument.
  * @param logger - plugin logger.
  */
-export declare function launchCustom(ctx: Context, itemId: string, itemPath: string, cwd: string, logger: OpenWithLogger): void;
+export declare function launchItem(ctx: Context, itemId: string, itemPath: string, cwd: string, passCwd: boolean, logger: OpenWithLogger): void;

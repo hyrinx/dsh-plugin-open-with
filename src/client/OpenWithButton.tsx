@@ -6,8 +6,12 @@
  * on `document.body` and is positioned from the anchor rect — the session
  * header's `container-type` and stacking context would otherwise clip it.
  *
- * Menu contents are re-read from the host every time the menu opens, so a
- * settings change is visible without a page reload.
+ * 文档来源有两条，分工明确：
+ * - 挂载时向 host 读一次，取当前落盘的文档；
+ * - 之后订阅 {@link subscribeSettings}，设置页每保存一次就收到 host 归一化
+ *   后的文档，立刻重渲染 —— 不等用户点开菜单。
+ * 展开菜单时仍会补读一次，纯粹是兜底：host 侧的文档也可能被本插件之外的
+ * 原因改动（例如直接编辑 settings.json）。
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -16,6 +20,7 @@ import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-cli
 import type { OpenWithItem, OpenWithSettings, OpenWithSettingsPayload } from '../shared.ts'
 import { FALLBACK_ICON_DATA_URL } from './fallback-icon.ts'
 import type { OpenWithLogLevel } from './controller.ts'
+import { latestSettings, subscribeSettings } from './settings-events.ts'
 
 /** Session-header slots this button can mount into, chosen by the settings page. */
 export type HeaderActionSlot =
@@ -93,7 +98,9 @@ function ItemIcon({ src, size = 14 }: { src: string; size?: number }) {
 export function OpenWithButton({
   sessionId, getSettings, launch, getCwd, log, iconUrl, t,
 }: OpenWithButtonProps) {
-  const [settings, setSettings] = useState<OpenWithSettings | null>(null)
+  // 初始值取最近一次广播的文档：切换注入位置会重建槽位注册，按钮随之重新
+  // 挂载，此时用它先行渲染，避免闪一帧空菜单；随后的读取会再校正一次。
+  const [settings, setSettings] = useState<OpenWithSettings | null>(() => latestSettings())
   const [override, setOverride] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -111,6 +118,13 @@ export function OpenWithButton({
   }, [])
 
   useEffect(() => { reload() }, [reload])
+
+  // 设置页保存成功即推送新文档，胶囊跟着立刻换掉当前项与菜单内容。
+  useEffect(() => subscribeSettings((next) => {
+    // 刚落盘的 currentId 优先于用户在菜单里做过的临时选择。
+    setOverride(null)
+    setSettings(next)
+  }), [])
 
   /** Localized label: all items use the same pattern. */
   const labelOf = (item: OpenWithItem): string => `${t('label')} ${item.name}`
@@ -142,6 +156,8 @@ export function OpenWithButton({
   }
 
   const onChevron = (): void => {
+    // 兜底而非主路径：正常改动由 subscribeSettings 即时送达，这里只是把
+    // "host 文档被本插件之外的原因改过"这种情况也补上。
     if (!open) reload()
     setOpen(value => !value)
   }

@@ -259,6 +259,10 @@ export function OpenWithSettings({ load, save, iconUrl, peers, loadBuiltins, set
   const [builtins, setBuiltins] = useState<OpenWithBuiltinsPayload | null>(null)
   const [builtinBusy, setBuiltinBusy] = useState(false)
   const [builtinError, setBuiltinError] = useState('')
+  // 最近一次保存失败的原因；空串表示没有失败
+  const [saveError, setSaveError] = useState('')
+  // 保存的发出序号：并发保存时只允许最后一次发出的请求校正本地状态
+  const saveSeq = useRef(0)
 
   // 注入面每次渲染都会给出新的函数引用：固定到 ref，避免加载 effect 反复触发
   // （反复 GET 会与保存的 POST 竞态，把刚写入的值覆盖回旧值）。
@@ -297,9 +301,38 @@ export function OpenWithSettings({ load, save, iconUrl, peers, loadBuiltins, set
   // 外部（加载/保存返回）刷新后的顺序回写输入框
   useEffect(() => { setOrderText(String(settings.order)) }, [settings.order])
 
+  /**
+   * 落盘一份新文档，并让界面停在 host 真正持有的那份上。
+   *
+   * 先乐观更新，拖拽、开关这类操作才能即时可见；随后用 host 回传的归一化
+   * 文档校正（host 会校正 id、收敛顺序）。
+   *
+   * 连续编辑会并发发出多个请求，而响应不保证按序返回，所以用序号守卫：
+   * 只有最后一次发出的请求有权写回状态，否则一个慢响应会把更新的一次覆盖
+   * 回去。失败时退回 host 实际持有的文档并亮出原因 —— 停在只存在于屏幕上
+   * 的状态，等于让用户以为改动已经生效。
+   */
   const persist = useCallback((next: OpenWithSettingsDoc) => {
     setSettings(next)
-    void saveRef.current(next).catch(() => { })
+    const seq = ++saveSeq.current
+    setSaveError('')
+    void saveRef.current(next)
+      .then((saved) => {
+        if (seq !== saveSeq.current) return
+        setSettings(saved)
+      })
+      .catch((err: unknown) => {
+        if (seq !== saveSeq.current) return
+        setSaveError(err instanceof Error ? err.message : String(err))
+        void loadRef.current()
+          .then((payload) => {
+            if (seq !== saveSeq.current) return
+            setSettings(payload.settings)
+          })
+          .catch(() => {
+            // 回读也失败时保持现状：上面的横幅已经说明了问题。
+          })
+      })
   }, [])
 
   // 选择当前项（点击卡片切换）
@@ -460,6 +493,23 @@ export function OpenWithSettings({ load, save, iconUrl, peers, loadBuiltins, set
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      {/*
+        ── 保存失败横幅 ─────────────────────────────────────────────────────────
+      */}
+      {saveError !== '' && (
+        <div
+          role="alert"
+          style={{
+            padding: '8px 12px', borderRadius: '6px', fontSize: '12px',
+            border: `1px solid ${dangerColor}`, color: dangerColor,
+            background: 'var(--dsw-alias-danger-alpha, rgba(229, 62, 62, 0.06))',
+            wordBreak: 'break-all',
+          }}
+        >
+          {t('settings.save.failed')} {saveError}
+        </div>
+      )}
+
       {/*
         ── 按钮位置 / 按钮顺序 / 内置插件 ───────────────────────────────────────────────
       */}

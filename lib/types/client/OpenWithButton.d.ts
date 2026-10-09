@@ -6,8 +6,12 @@
  * on `document.body` and is positioned from the anchor rect — the session
  * header's `container-type` and stacking context would otherwise clip it.
  *
- * Menu contents are re-read from the host every time the menu opens, so a
- * settings change is visible without a page reload.
+ * 文档来源有两条，分工明确：
+ * - 挂载时向 host 读一次，取当前落盘的文档；
+ * - 之后订阅 {@link subscribeSettings}，设置页每保存一次就收到 host 归一化
+ *   后的文档，立刻重渲染 —— 不等用户点开菜单。
+ * 展开菜单时仍会补读一次，纯粹是兜底：host 侧的文档也可能被本插件之外的
+ * 原因改动（例如直接编辑 settings.json）。
  */
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots';
 import type { OpenWithSettingsPayload } from '../shared.ts';

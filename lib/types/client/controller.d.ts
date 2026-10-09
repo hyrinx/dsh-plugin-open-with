@@ -5,7 +5,7 @@
  * is no client-side cache, so the menu and the settings page always show the
  * document the host actually holds.
  */
-import { type OpenWithBuiltinKey, type OpenWithBuiltinsPayload, type OpenWithSettings, type OpenWithSettingsPayload } from '../shared.ts';
+import { type OpenWithBuiltinsPayload, type OpenWithSettings, type OpenWithSettingsPayload } from '../shared.ts';
 type Fetch = (input: string | URL, init?: RequestInit) => Promise<Response>;
 /** Log levels the log route accepts. */
 export type OpenWithLogLevel = 'info' | 'warn' | 'error';
@@ -16,7 +16,7 @@ export declare class OpenWithController {
      */
     constructor(fetcher?: Fetch);
     /**
-     * Read the settings document and the resolved preset launcher paths.
+     * Read the settings document.
      * @returns the host's normalized document.
      */
     load(): Promise<OpenWithSettingsPayload>;
@@ -34,17 +34,16 @@ export declare class OpenWithController {
      */
     launch(target: string, path: string): Promise<void>;
     /**
-     * Read the enablement of DSH's own open-in-app halves.
-     * @returns the inventory rows, or `available: false` when this profile exposes no plugin manager.
+     * Read the enablement of DSH's own open-in-app pair.
+     * @returns the merged state, or `available: false` when this profile exposes no plugin manager.
      */
     loadBuiltins(): Promise<OpenWithBuiltinsPayload>;
     /**
-     * Switch one built-in half on or off.
-     * @param key - which half to change.
-     * @param enabled - whether it should run.
-     * @returns the host's refreshed rows.
+     * Switch both built-in halves on or off together.
+     * @param enabled - whether the pair should run.
+     * @returns the host's refreshed state.
      */
-    setBuiltin(key: OpenWithBuiltinKey, enabled: boolean): Promise<OpenWithBuiltinsPayload>;
+    setBuiltin(enabled: boolean): Promise<OpenWithBuiltinsPayload>;
     /**
      * Mirror one line into the browser console and the host log file.
      * @param level - log level.

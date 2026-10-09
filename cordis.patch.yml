@@ -1,12 +1,18 @@
 # dsh-plugin-open-with: adds a capsule split-button ("Open" + target
 # picker) to the conversation session header. The host side registers
-# an RPC handler that dispatches to code/cmd/explorer (and more later)
-# via the subprocess capability; the browser side injects the button
-# into conversation.session.header.actions.
+# four webServer routes (settings / icon / open / log) behind the
+# connection trust fence and dispatches launches to
+# code/cmd/powershell/explorer (and custom launchers) via the subprocess
+# capability; the browser side injects the button into
+# conversation.session.header.actions or
+# conversation.session.header.utilities, switchable in the settings page.
 #
-# To add a new launcher, see README § "构建与扩展" — three files need
-# synchronized edits: src/index.ts buildSpawnSpec(), client/TARGETS +
-# TARGET_META, and src/client/locales.ts.
+# Settings live in profile/<mode>/open-with/settings.json and the host
+# log in profile/<mode>/open-with/host.log.
+#
+# To add a built-in launcher, edit src/shared.ts (PRESET_ITEMS +
+# LaunchTarget), src/launch.ts (the spawn recipe), and
+# src/client/locales.ts (the label).
 
 - insert:
     - id: open-with

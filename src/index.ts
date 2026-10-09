@@ -1,319 +1,447 @@
 /**
- * Host-side plugin: registers `/open-with` RPC (launch / log / extractIcon /
- * readSettings / writeSettings / resolvePresetPath).
- * 当前仅支持 Windows 平台。
- * `launch` spawns 预设或自定义启动器到工作区目录。
- * `extractIcon` 通过 PowerShell 从 .exe 提取 base64 PNG 图标。
+ * Host half of open-with: four routes on the composition's `webServer`
+ * serving the settings document, per-item icons, the launch endpoint the
+ * browser split button posts to, and the browser log relay.
+ *
+ * Security has one home, here. Every route asks the composition's
+ * `connection` service for a rejection first: its Host/Origin fence defeats
+ * DNS rebinding and cross-site calls, and its browser authentication gates
+ * every caller before any setting, icon, or launch is reachable. On top of
+ * that fence each route validates its body at the wire (JSON media type, a
+ * bounded body, string fields, an item id that exists, an absolute path
+ * naming an existing directory).
+ *
+ * Settings live in the profile the plugin was loaded from
+ * (`profile/<mode>/open-with/settings.json`); the log sits beside them.
+ * Windows only: every launcher recipe in `./launch.ts` targets win32.
  */
+
+import type { IncomingMessage, ServerResponse } from 'node:http'
+import { isAbsolute } from 'node:path'
+import { stat } from 'node:fs/promises'
 import type { Context } from '@deepseek-ai/cordis'
+import type {} from '@deepseek-ai/dsh-host-webserver'
 import type {} from '@deepseek-ai/dsh-subprocess'
-import type {} from '@deepseek-ai/dsh-client-connection'
-import { logger } from './logger.js'
-import { resolveDshHome, dshHomePath } from './dsh-home.js'
-import * as path from 'node:path'
-import * as fs from 'node:fs'
+import {
+  OPEN_WITH_BUILTIN_MODULES, OPEN_WITH_BUILTINS_PATH, OPEN_WITH_ICON_PREFIX_PATH, OPEN_WITH_LOG_PATH,
+  OPEN_WITH_OPEN_PATH, OPEN_WITH_SETTINGS_PATH, defaultSettings,
+  type OpenWithBuiltinState, type OpenWithBuiltinsPayload,
+  type OpenWithSettings, type OpenWithSettingsPayload,
+} from './shared.ts'
+import { logFileOf, openWithDirOf, readSettings, settingsFileOf, writeSettings } from './storage.ts'
+import { createLogger } from './logger.ts'
+import { extractIconPng } from './icons.ts'
+import { launchItem, resolveExecutable } from './launch.ts'
 
-/** 设置文件存储路径：遵循 DSH 规范，$DSH_HOME/storages/dsh-open-with/settings.json */
-const SETTINGS_DIR = dshHomePath('storages', 'dsh-open-with')
-const SETTINGS_FILE = path.join(SETTINGS_DIR, 'settings.json')
+/** Cordis function-plugin name. */
+export const name = 'open-with'
 
-export type LaunchTarget = 'code' | 'cmd' | 'explorer' | 'powershell'
+/** The route carrier, the trust fence guarding every route, and the PATH resolver. */
+export const inject = ['subprocess', 'connection', 'webServer']
 
-/** 设置项结构（与 client 端 OpenWithItem 保持一致）。 */
-interface SettingsItem {
-  id: string
-  name: string
-  path: string
-  icon: string
-  preset: boolean
-  target?: string
+/** Trust surface consumed here; the browser-side connection package owns the full type. */
+interface OpenWithConnection {
+  requestRejection(request: { readonly headers: IncomingMessage['headers'] }): 401 | 403 | undefined
 }
 
-interface AppSettings {
-  currentId: string
-  items: SettingsItem[]
-  hiddenIds: string[]
+/** Request bodies are tiny JSON objects; anything larger is hostile. */
+const MAX_BODY_BYTES = 64 * 1024
+
+/** JSON response (no-store: settings and launch outcomes are live facts). */
+function sendJson(res: ServerResponse, status: number, payload: unknown): void {
+  res.statusCode = status
+  res.setHeader('content-type', 'application/json; charset=utf-8')
+  res.setHeader('cache-control', 'no-store')
+  res.end(JSON.stringify(payload))
 }
 
-/** 读取设置文件，失败时返回 null。 */
-function readSettingsSync(): AppSettings | null {
+/** 405 with the route's supported methods. */
+function sendMethodNotAllowed(res: ServerResponse, allow: string): void {
+  res.statusCode = 405
+  res.setHeader('allow', allow)
+  res.end()
+}
+
+/** 404 for an item the icon route cannot serve. */
+function sendNoIcon(res: ServerResponse, id: string): void {
+  sendJson(res, 404, { code: 'not-found', message: `no icon for item: ${id}` })
+}
+
+/** Collect a bounded request body as UTF-8 text; null past the ceiling (stream drained). */
+async function readBoundedBody(req: IncomingMessage): Promise<string | null> {
+  const chunks: Buffer[] = []
+  let size = 0
+  for await (const chunk of req as AsyncIterable<Buffer>) {
+    size += chunk.byteLength
+    if (size > MAX_BODY_BYTES) {
+      // Drain the remainder so the refusal is a readable response, not a socket cut.
+      req.resume()
+      return null
+    }
+    chunks.push(chunk)
+  }
+  return Buffer.concat(chunks, size).toString('utf8')
+}
+
+/**
+ * Read one request body as JSON, answering the failure itself.
+ * @param req - the incoming request.
+ * @param res - the response the failure is written to.
+ * @returns the parsed value, or undefined when a response has already been sent.
+ */
+async function readJsonBody(req: IncomingMessage, res: ServerResponse): Promise<unknown | undefined> {
+  const essence = String(req.headers['content-type']).split(';', 1)[0]?.trim().toLowerCase()
+  if (essence !== 'application/json') {
+    sendJson(res, 415, { code: 'unsupported-media-type', message: 'content-type must be application/json' })
+    return undefined
+  }
+  let text: string | null
   try {
-    if (!fs.existsSync(SETTINGS_FILE)) return null
-    const raw = fs.readFileSync(SETTINGS_FILE, 'utf-8')
-    return JSON.parse(raw) as AppSettings
+    text = await readBoundedBody(req)
   } catch {
-    return null
+    // Swallows a connection error mid-body: nothing is left to answer precisely.
+    sendJson(res, 400, { code: 'bad-request', message: 'request body unreadable' })
+    return undefined
+  }
+  if (text === null) {
+    sendJson(res, 413, { code: 'payload-too-large', message: 'request body is too large' })
+    return undefined
+  }
+  try {
+    return JSON.parse(text) as unknown
+  } catch {
+    // Swallows the parse error: a non-JSON body is exactly the invalid case.
+    sendJson(res, 400, { code: 'bad-request', message: 'request body must be JSON' })
+    return undefined
   }
 }
 
-export const inject = ['subprocess', 'connection']
-
-async function buildSpawnSpec(
-  ctx: Context,
-  target: LaunchTarget,
-  cwd: string,
-): Promise<{ argv: readonly string[]; useSpawnCwd: boolean }> {
-  switch (target) {
-    case 'code': {
-      const exe = await ctx.subprocess.resolveExecutable('code')
-      return {
-        argv: ['cmd', '/c', exe, cwd],
-        useSpawnCwd: false,
-      }
-    }
-    case 'cmd': {
-      const windir = process.env.windir ?? 'C:\\Windows'
-      const cmdPath = `${windir}\\System32\\cmd.exe`
-      const escapedCwd = cwd.includes(' ') ? `"${cwd}"` : cwd
-      const innerCommands = `title ${cmdPath} && cd /d ${escapedCwd}`
-      return {
-        argv: ['cmd', '/c', 'start', `"${cmdPath}"`, 'cmd', '/K', innerCommands],
-        useSpawnCwd: false,
-      }
-    }
-    case 'powershell': {
-      const windir = process.env.windir ?? 'C:\\Windows'
-      const psPath = `${windir}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe`
-      const escapedCwd = cwd.replace(/'/g, "''")
-      return {
-        argv: [
-          'cmd', '/c', 'start', `"${psPath}"`, 'powershell', '-NoExit',
-          '-Command',
-          `[Console]::Title = '${psPath.replace(/'/g, "''")}'; Set-Location -LiteralPath '${escapedCwd}'`,
-        ],
-        useSpawnCwd: false,
-      }
-    }
-    case 'explorer': {
-      return {
-        argv: ['explorer.exe', cwd],
-        useSpawnCwd: false,
-      }
-    }
-    default: {
-      const _exhaustive: never = target
-      throw new Error(`unknown launch target: ${String(_exhaustive)}`)
-    }
-  }
+/** Extract a string field from a parsed body, or undefined when absent/mistyped. */
+function stringField(body: unknown, key: string): string | undefined {
+  if (body === null || typeof body !== 'object') return undefined
+  const value = (body as Record<string, unknown>)[key]
+  return typeof value === 'string' ? value : undefined
 }
 
-/** 通过 PowerShell 从 exe 文件中提取图标，返回 base64 PNG data URL。 */
-async function extractFileIcon(ctx: Context, exePath: string): Promise<string> {
-  logger.info('extractIcon start', { exePath })
-  const escapedPath = exePath.replace(/'/g, "''")
-  const psScript = [
-    `$ErrorActionPreference = 'Stop'`,
-    `[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)`,
-    `Add-Type -AssemblyName System.Drawing -ErrorAction Stop`,
-    `$icon = [System.Drawing.Icon]::ExtractAssociatedIcon('${escapedPath}')`,
-    `if (!$icon) { exit 0 }`,
-    `$bitmap = $icon.ToBitmap()`,
-    `$ms = New-Object System.IO.MemoryStream`,
-    `$bitmap.Save($ms, [System.Drawing.Imaging.ImageFormat]::Png)`,
-    `$bytes = $ms.ToArray()`,
-    `$base64 = [Convert]::ToBase64String($bytes)`,
-    `Write-Output "data:image/png;base64,$base64"`,
-    `$ms.Close(); $bitmap.Dispose(); $icon.Dispose()`,
-  ].join('; ')
-  // DSH subprocess 必须用 SubprocessCollect 模式（{ maxBytes }），
-  // 不能用 'pipe' 字符串，否则 handle.collected 为 undefined
-  const maxBytes = 2 * 1024 * 1024
-  const handle = ctx.subprocess.spawn({
-    argv: ['powershell', '-NoProfile', '-NonInteractive', '-Command', psScript],
-    stdio: {
-      stdin: 'ignore',
-      stdout: { maxBytes },
-      stderr: { maxBytes },
-    },
-    graceMs: 15000,
-  })
-  const outcome = await handle.done
-  const stderr = handle.collected.stderr?.readFrom(0).text ?? ''
-  if (outcome.exitCode !== 0) {
-    logger.error('extractIcon PowerShell failed', { exePath, exitCode: outcome.exitCode, stderr })
-    return ''
-  }
-  if (stderr) {
-    logger.warn('extractIcon PowerShell stderr', { exePath, stderr })
-  }
-  const stdout = handle.collected.stdout?.readFrom(0).text ?? ''
-  const icon = stdout.trim()
-  if (!icon) {
-    logger.warn('extractIcon returned empty', { exePath, stdoutLen: stdout.length, stderr })
-  } else {
-    logger.info('extractIcon done', { exePath, dataLen: icon.length })
-  }
-  return icon
+/** The inventory row members this plugin reads; the boot package owns the full row. */
+interface PluginInfoLike {
+  readonly entryId: string
+  readonly moduleName: string
+  readonly enabled: boolean
+  readonly readOnlyReason?: string
 }
 
-/** 获取预设启动器的实际可执行文件路径。 */
-function resolvePresetPath(ctx: Context, target: LaunchTarget): string {
-  const windir = process.env.windir ?? 'C:\\Windows'
-  switch (target) {
-    case 'cmd':
-      return `${windir}\\System32\\cmd.exe`
-    case 'powershell':
-      return `${windir}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe`
-    case 'explorer':
-      return `${windir}\\explorer.exe`
-    case 'code':
-      // 异步解析在 RPC handler 中处理
-      return 'code'
-    default:
-      return ''
-  }
+/** The plugin-manager members used to reflect and flip the built-in halves. */
+interface PluginManagerLike {
+  listPlugins(): Promise<readonly PluginInfoLike[]>
+  setPluginEnabled(id: string, enabled: boolean): Promise<unknown>
 }
 
+/** Register the settings, icon, open, and log routes behind the connection trust fence. */
 export function apply(ctx: Context): void {
-  logger.info('plugin loaded')
-  ctx.effect(() => {
-    return ctx.connection.rpc.handle(
-      '/open-with',
-      async (endpoint: string, payload: unknown) => {
-        logger.info('RPC /open-with', { endpoint, payload })
-        if (endpoint === 'log') {
-          const { level = 'info', message = '', extra } = (payload ?? {}) as {
-            level?: 'info' | 'warn' | 'error'
-            message?: string
-            extra?: unknown
+  const directory = openWithDirOf(ctx)
+  const settingsFile = settingsFileOf(directory)
+  const logger = createLogger(ctx, logFileOf(directory))
+  logger.info('plugin loaded', { settingsFile })
+
+  /** Answer an untrusted/unauthenticated request; true when it was rejected. */
+  const rejected = (req: IncomingMessage, res: ServerResponse): boolean => {
+    const connection = ctx.connection as OpenWithConnection | undefined
+    const rejection = connection?.requestRejection?.(req)
+    if (rejection === undefined) return false
+    res.statusCode = rejection
+    res.end()
+    return true
+  }
+
+  /**
+   * The stored document, seeding one on the very first read.
+   *
+   * Presets seed with bare command names; that first read resolves each into an
+   * absolute executable path and writes it back once. Every later read returns
+   * the saved document as-is, so icon extraction and the launch both read the
+   * same saved absolute path, and settings edits never re-resolve.
+   */
+  const loadSettings = async (): Promise<OpenWithSettings> => {
+    const stored = readSettings(settingsFile)
+    if (stored !== null) return stored
+    const seed = defaultSettings()
+    const items = await Promise.all(seed.items.map(async (item) => ({
+      ...item,
+      path: await resolveExecutable(ctx, item.path),
+    })))
+    const seeded: OpenWithSettings = { ...seed, items }
+    try {
+      writeSettings(settingsFile, seeded)
+    } catch (err) {
+      // Swallows the write failure: the document is still served, and the
+      // next read seeds again.
+      logger.warn('could not persist the seeded settings', err)
+    }
+    return seeded
+  }
+
+  /** Per-executable icon cache (null = resolved as unavailable). */
+  const icons = new Map<string, Promise<Buffer | null>>()
+  const iconOf = (executable: string): Promise<Buffer | null> => {
+    let cached = icons.get(executable)
+    if (cached === undefined) {
+      cached = extractIconPng(ctx, executable, logger)
+      icons.set(executable, cached)
+    }
+    return cached
+  }
+
+  ctx.effect(() => ctx.webServer.register({
+    kind: 'exact',
+    path: OPEN_WITH_SETTINGS_PATH,
+    handler: async (req: IncomingMessage, res: ServerResponse) => {
+      if (rejected(req, res)) return
+      if (req.method === 'GET') {
+        const payload: OpenWithSettingsPayload = { settings: await loadSettings() }
+        sendJson(res, 200, payload)
+        return
+      }
+      if (req.method !== 'POST') {
+        sendMethodNotAllowed(res, 'GET, POST')
+        return
+      }
+      const body = await readJsonBody(req, res)
+      if (body === undefined) return
+      if (body === null || typeof body !== 'object' || !('settings' in body)) {
+        sendJson(res, 400, { code: 'bad-request', message: 'request body must be JSON with a "settings" field' })
+        return
+      }
+      try {
+        const saved = writeSettings(settingsFile, (body as { settings: unknown }).settings)
+        logger.info('settings saved', { file: settingsFile })
+        sendJson(res, 200, { settings: saved })
+      } catch (err) {
+        logger.error('settings write failed', err)
+        sendJson(res, 500, { code: 'write-failed', message: 'could not write the settings file' })
+      }
+    },
+  }), `open-with: ${OPEN_WITH_SETTINGS_PATH}`)
+
+  ctx.effect(() => ctx.webServer.register({
+    kind: 'prefix',
+    path: OPEN_WITH_ICON_PREFIX_PATH,
+    handler: async (req: IncomingMessage, res: ServerResponse) => {
+      if (rejected(req, res)) return
+      if (req.method !== 'GET') {
+        sendMethodNotAllowed(res, 'GET')
+        return
+      }
+      // Node always sets url on server requests; String keeps that fact local.
+      const pathname = new URL(String(req.url), 'http://localhost').pathname
+      const id = decodeURIComponent(pathname.slice(OPEN_WITH_ICON_PREFIX_PATH.length).replace(/^\//, ''))
+      const item = (await loadSettings()).items.find(entry => entry.id === id)
+      if (item === undefined || id.length === 0 || item.path.length === 0) {
+        sendNoIcon(res, id)
+        return
+      }
+      // loadSettings keeps item.path as an absolute executable path, so the
+      // icon is extracted from exactly the file a launch would start.
+      const bytes = await iconOf(item.path)
+      if (bytes === null || bytes.length === 0) {
+        sendNoIcon(res, id)
+        return
+      }
+      res.statusCode = 200
+      res.setHeader('content-type', 'image/png')
+      // no-store: a custom item keeps its id across path edits, so a cached
+      // icon would survive the change it invalidated.
+      res.setHeader('cache-control', 'no-store')
+      res.end(bytes)
+    },
+  }), `open-with: ${OPEN_WITH_ICON_PREFIX_PATH}/<id>`)
+
+  ctx.effect(() => ctx.webServer.register({
+    kind: 'exact',
+    path: OPEN_WITH_OPEN_PATH,
+    handler: async (req: IncomingMessage, res: ServerResponse) => {
+      if (rejected(req, res)) return
+      if (req.method !== 'POST') {
+        sendMethodNotAllowed(res, 'POST')
+        return
+      }
+      const body = await readJsonBody(req, res)
+      if (body === undefined) return
+      const target = stringField(body, 'target')
+      const workspace = stringField(body, 'path')
+      if (target === undefined || target.length === 0 || workspace === undefined || workspace.length === 0) {
+        sendJson(res, 400, { code: 'bad-request', message: 'request body must be JSON with string "target" and "path"' })
+        return
+      }
+      const item = (await loadSettings()).items.find(entry => entry.id === target)
+      if (item === undefined) {
+        sendJson(res, 400, { code: 'bad-request', message: `unknown item: ${target}` })
+        return
+      }
+      if (!isAbsolute(workspace)) {
+        sendJson(res, 400, { code: 'bad-request', message: 'path must be an absolute directory path' })
+        return
+      }
+      let isDirectory: boolean
+      try {
+        isDirectory = (await stat(workspace)).isDirectory()
+      } catch {
+        // Swallows ENOENT/EACCES: both mean there is no directory to open.
+        isDirectory = false
+      }
+      if (!isDirectory) {
+        sendJson(res, 404, { code: 'not-found', message: `directory does not exist: ${workspace}` })
+        return
+      }
+      try {
+        launchItem(ctx, item.id, item.path, workspace, item.passCwd !== false, logger)
+        sendJson(res, 200, { ok: true })
+      } catch (err) {
+        logger.error('launch failed', { target, err })
+        sendJson(res, 502, { code: 'launch-failed', message: `failed to launch ${target}` })
+      }
+    },
+  }), `open-with: ${OPEN_WITH_OPEN_PATH}`)
+
+  ctx.effect(() => ctx.webServer.register({
+    kind: 'exact',
+    path: OPEN_WITH_LOG_PATH,
+    handler: async (req: IncomingMessage, res: ServerResponse) => {
+      if (rejected(req, res)) return
+      if (req.method !== 'POST') {
+        sendMethodNotAllowed(res, 'POST')
+        return
+      }
+      const body = await readJsonBody(req, res)
+      if (body === undefined) return
+      const level = stringField(body, 'level')
+      const message = stringField(body, 'message')
+      const extra = body !== null && typeof body === 'object'
+        ? (body as { extra?: unknown }).extra
+        : undefined
+      const normalized = level === 'warn' || level === 'error' ? level : 'info'
+      logger.client(normalized, message ?? '', extra)
+      sendJson(res, 200, { ok: true })
+    },
+  }), `open-with: ${OPEN_WITH_LOG_PATH}`)
+
+  /** The profile's plugin manager, or undefined when this profile exposes none. */
+  const pluginManager = (): PluginManagerLike | undefined => {
+    const service = ctx.get('pluginManager') as PluginManagerLike | undefined
+    return typeof service?.listPlugins === 'function' ? service : undefined
+  }
+
+  /** Observe the built-in pair in the live plugin inventory, as one unit. */
+  const readBuiltins = async (manager: PluginManagerLike): Promise<OpenWithBuiltinState> => {
+    const rows = await manager.listPlugins()
+    const halves = OPEN_WITH_BUILTIN_MODULES.map(moduleName =>
+      rows.find(entry => entry.moduleName === moduleName))
+    const reason = halves.map(row => row?.readOnlyReason).find(value => value !== undefined)
+    return {
+      present: halves.every(row => row !== undefined),
+      enabled: halves.every(row => row?.enabled === true),
+      readOnly: reason !== undefined,
+      ...(reason === 'management-required' || reason === 'unaddressable' ? { readOnlyReason: reason } : {}),
+    }
+  }
+
+  ctx.effect(() => ctx.webServer.register({
+    kind: 'exact',
+    path: OPEN_WITH_BUILTINS_PATH,
+    handler: async (req: IncomingMessage, res: ServerResponse) => {
+      if (rejected(req, res)) return
+      const manager = pluginManager()
+      if (req.method === 'GET') {
+        if (manager === undefined) {
+          const payload: OpenWithBuiltinsPayload = {
+            available: false, present: false, enabled: false, readOnly: false,
           }
-          logger.client(level, String(message), extra)
-          return { ok: true, value: null }
+          sendJson(res, 200, payload)
+          return
         }
-        if (endpoint === 'extractIcon') {
-          const { exePath } = (payload ?? {}) as { exePath?: string }
-          if (typeof exePath !== 'string' || exePath.length === 0) {
-            return { ok: false, error: { code: 'invalid-path', message: 'exePath is required' } }
-          }
-          try {
-            const icon = await extractFileIcon(ctx, exePath)
-            return { ok: true, value: { icon } }
-          } catch (err) {
-            const message = err instanceof Error ? err.message : String(err)
-            logger.error('extractIcon failed', err)
-            return { ok: false, error: { code: 'extract-failed', message } }
-          }
-        }
-        if (endpoint === 'resolvePresetPath') {
-          const { target } = (payload ?? {}) as { target?: LaunchTarget }
-          if (!target || !['code', 'cmd', 'powershell', 'explorer'].includes(target)) {
-            return { ok: false, error: { code: 'invalid-target', message: 'target is required' } }
-          }
-          try {
-            let resolvedPath: string
-            if (target === 'code') {
-              resolvedPath = await ctx.subprocess.resolveExecutable('code')
-              // resolveExecutable 返回的是 PATH 中的 code.cmd（CLI 包装器），
-              // 尝试反查真实的 Code.exe（位于 bin/ 的上级目录）
-              const ext = path.extname(resolvedPath).toLowerCase()
-              if (ext === '.cmd' || ext === '.bat') {
-                const binDir = path.dirname(resolvedPath)
-                const vsCodeDir = path.dirname(binDir)
-                const exePath = path.join(vsCodeDir, 'Code.exe')
-                if (fs.existsSync(exePath)) {
-                  resolvedPath = exePath
-                }
-              }
-            } else {
-              resolvedPath = resolvePresetPath(ctx, target)
-            }
-            return { ok: true, value: { path: resolvedPath } }
-          } catch (err) {
-            const message = err instanceof Error ? err.message : String(err)
-            logger.error('resolvePresetPath failed', err)
-            return { ok: false, error: { code: 'resolve-failed', message } }
-          }
-        }
-        if (endpoint === 'readSettings') {
-          try {
-            if (!fs.existsSync(SETTINGS_FILE)) {
-              return { ok: true, value: { settings: null } }
-            }
-            const raw = await fs.promises.readFile(SETTINGS_FILE, 'utf-8')
-            return { ok: true, value: { settings: JSON.parse(raw) } }
-          } catch (err) {
-            const message = err instanceof Error ? err.message : String(err)
-            logger.error('readSettings failed', err)
-            return { ok: false, error: { code: 'read-failed', message } }
-          }
-        }
-        if (endpoint === 'writeSettings') {
-          const { settings } = (payload ?? {}) as { settings?: unknown }
-          if (settings === undefined) {
-            return { ok: false, error: { code: 'invalid-settings', message: 'settings is required' } }
-          }
-          try {
-            await fs.promises.mkdir(SETTINGS_DIR, { recursive: true })
-            const tmp = SETTINGS_FILE + '.tmp'
-            await fs.promises.writeFile(tmp, JSON.stringify(settings, null, 2), 'utf-8')
-            await fs.promises.rename(tmp, SETTINGS_FILE)
-            logger.info('settings saved', { file: SETTINGS_FILE })
-            return { ok: true, value: {} }
-          } catch (err) {
-            const message = err instanceof Error ? err.message : String(err)
-            logger.error('writeSettings failed', err)
-            return { ok: false, error: { code: 'write-failed', message } }
-          }
-        }
-        if (endpoint !== 'launch') {
-          logger.warn('unknown endpoint', endpoint)
-          return { ok: false, error: { code: 'unknown-endpoint', message: `unknown endpoint: ${endpoint}` } }
-        }
-        const { cwd, target } = (payload ?? {}) as { cwd?: string; target?: string }
-        if (typeof cwd !== 'string' || cwd.length === 0) {
-          logger.warn('cwd missing or invalid', { cwd })
-          return { ok: false, error: { code: 'invalid-cwd', message: 'cwd is required' } }
-        }
-        const targetStr: string = target ?? 'code'
-        const isPreset = ['code', 'cmd', 'powershell', 'explorer'].includes(targetStr)
-        const resolvedTarget: LaunchTarget = isPreset ? targetStr as LaunchTarget : 'code'
         try {
-          if (!isPreset) {
-            // 自定义项：从设置中查找路径，用 cmd /c start 启动
-            const settings = readSettingsSync()
-            const item = settings?.items.find((it) => it.id === targetStr)
-            if (!item || item.preset || !item.path) {
-              return { ok: false, error: { code: 'invalid-target', message: `custom item not found: ${targetStr}` } }
-            }
-            const escapedCwd = cwd.includes(' ') ? `"${cwd}"` : cwd
-            const handle = ctx.subprocess.spawn({
-              argv: ['cmd', '/c', 'start', '', item.path],
-              cwd: cwd,
-              stdio: { stdin: 'ignore', stdout: 'inherit', stderr: 'inherit' },
-              graceMs: 5000,
-            })
-            logger.info('spawned custom item', { target: targetStr, path: item.path, pid: handle.pid })
-            handle.done.catch((err: unknown) => {
-              logger.error('process exited with error', err)
-            })
-            return { ok: true, value: { launched: true, target: targetStr, pid: handle.pid } }
-          }
-          if (resolvedTarget === 'code') {
-            const exe = await ctx.subprocess.resolveExecutable('code')
-            logger.info('resolved code ->', exe)
-          }
-          const { argv, useSpawnCwd } = await buildSpawnSpec(ctx, resolvedTarget, cwd)
-          const handle = ctx.subprocess.spawn({
-            argv: [...argv],
-            cwd: useSpawnCwd ? cwd : process.cwd(),
-            stdio: { stdin: 'ignore', stdout: 'inherit', stderr: 'inherit' },
-            graceMs: 5000,
+          const state = await readBuiltins(manager)
+          logger.info('built-in plugin state read', {
+            present: state.present,
+            enabled: state.enabled,
+            readOnly: state.readOnlyReason ?? false,
           })
-          logger.info('spawned', { target: resolvedTarget, argv, pid: handle.pid })
-          handle.done.catch((err: unknown) => {
-            logger.error('process exited with error', err)
-          })
-          return { ok: true, value: { launched: true, target: resolvedTarget, pid: handle.pid } }
+          const payload: OpenWithBuiltinsPayload = { available: true, ...state }
+          sendJson(res, 200, payload)
         } catch (err) {
-          const message = err instanceof Error ? err.message : String(err)
-          logger.error('launch failed', err)
-          if (resolvedTarget === 'code') {
-            logger.error('install "code" CLI via VS Code Command Palette: "Shell Command: Install \'code\' command in PATH"')
-          }
-          return { ok: false, error: { code: 'launch-failed', message: `failed to launch ${targetStr}: ${message}` } }
+          logger.error('plugin inventory read failed', err)
+          sendJson(res, 502, { code: 'inventory-failed', message: 'could not read the plugin inventory' })
         }
-      },
-      { authority: 'loopback' },
-    )
-  }, 'open-with: RPC handler')
+        return
+      }
+      if (req.method !== 'POST') {
+        sendMethodNotAllowed(res, 'GET, POST')
+        return
+      }
+      if (manager === undefined) {
+        sendJson(res, 409, { code: 'unavailable', message: 'this profile exposes no plugin manager' })
+        return
+      }
+      const body = await readJsonBody(req, res)
+      if (body === undefined) return
+      const enabled = body !== null && typeof body === 'object'
+        ? (body as { enabled?: unknown }).enabled
+        : undefined
+      if (typeof enabled !== 'boolean') {
+        sendJson(res, 400, {
+          code: 'bad-request',
+          message: 'request body must be JSON with a boolean "enabled"',
+        })
+        return
+      }
+      try {
+        // Resolve and vet every half first: a refusal must leave both untouched,
+        // so a toggle that cannot address one half never half-applies.
+        const rows = await manager.listPlugins()
+        const halves: PluginInfoLike[] = []
+        for (const moduleName of OPEN_WITH_BUILTIN_MODULES) {
+          const row = rows.find(entry => entry.moduleName === moduleName)
+          if (row === undefined) {
+            sendJson(res, 404, { code: 'not-found', message: `not loaded in this profile: ${moduleName}` })
+            return
+          }
+          if (row.readOnlyReason !== undefined) {
+            sendJson(res, 409, { code: row.readOnlyReason, message: `this entry is ${row.readOnlyReason}` })
+            return
+          }
+          halves.push(row)
+        }
+        for (const row of halves) await manager.setPluginEnabled(row.entryId, enabled)
+        logger.info('built-in plugins toggled', { modules: OPEN_WITH_BUILTIN_MODULES, enabled })
+        const payload: OpenWithBuiltinsPayload = { available: true, ...await readBuiltins(manager) }
+        sendJson(res, 200, payload)
+      } catch (err) {
+        logger.error('built-in plugin toggle failed', { modules: OPEN_WITH_BUILTIN_MODULES, err })
+        sendJson(res, 502, { code: 'toggle-failed', message: 'could not change the built-in open-in-app plugins' })
+      }
+    },
+  }), `open-with: ${OPEN_WITH_BUILTINS_PATH}`)
+
+  // 首次加载时自动关闭内置 open-in-app 插件，避免与本插件同时出现两个打开按钮
+  ctx.effect(() => {
+    const manager = pluginManager()
+    if (manager === undefined) return
+    manager.listPlugins().then((rows) => {
+      const halves = OPEN_WITH_BUILTIN_MODULES
+        .map(moduleName => rows.find(entry => entry.moduleName === moduleName))
+        .filter((row): row is PluginInfoLike => row !== undefined)
+      if (halves.length === 0) return
+      const hasReadOnly = halves.some(row => row.readOnlyReason !== undefined)
+      if (hasReadOnly) {
+        logger.info('built-in plugins are read-only, skipping auto-disable')
+        return
+      }
+      const allDisabled = halves.every(row => !row.enabled)
+      if (allDisabled) return
+      return Promise.all(halves.map(row => manager.setPluginEnabled(row.entryId, false)))
+        .then(() => { logger.info('auto-disabled built-in plugins', { modules: OPEN_WITH_BUILTIN_MODULES }) })
+    }).catch((err: unknown) => {
+      logger.error('auto-disable built-in plugins failed', err)
+    })
+  })
 }

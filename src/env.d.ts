@@ -21,8 +21,8 @@ declare module '@deepseek-ai/dsh-subprocess' {
   // 仅声明模块存在，具体类型由运行时决定
 }
 
-declare module '@deepseek-ai/dsh-client-connection' {
-  export type Connection = $TS_FIXME
+declare module '@deepseek-ai/dsh-host-webserver' {
+  // 仅声明模块存在，具体类型由运行时决定
 }
 
 declare module '@deepseek-ai/dsh-client-runtime/client' {
@@ -30,10 +30,6 @@ declare module '@deepseek-ai/dsh-client-runtime/client' {
 }
 
 declare module '@deepseek-ai/dsh-client-locale/client' {
-  // 仅用于模块扩充
-}
-
-declare module '@deepseek-ai/dsh-client-connection/client' {
   // 仅用于模块扩充
 }
 
@@ -51,14 +47,6 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 }
 
 declare module '@deepseek-ai/dsh-client-ui-primitives' {
-  export function IconChevronDownOutline14(props: $TS_FIXME): JSX.Element
-  export function useDismissOnOutsidePointer(...args: $TS_FIXME[]): void
-}
-
-declare module '@deepseek-ai/dsh-host-apiproxy/api' {
-  export interface RpcResult<T = unknown> {
-    ok: boolean
-    value?: T
-    error?: { code: string; message: string }
-  }
+  export function Menu(props: $TS_FIXME): JSX.Element
+  export function Switch(props: $TS_FIXME): JSX.Element
 }

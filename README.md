@@ -37,11 +37,14 @@
   - **CMD / PowerShell**：开独立控制台窗口并定位到工作区。
   - **文件资源管理器**：调用 `explorer.exe` 打开工作区。
 - ⚙️ **设置页面**：在 DSH 设置面板中注入「Open With」配置区域，支持：
+  - **按钮位置可切换**：胶囊按钮可注入会话标题旁（`actions`）或右侧工具区（`utilities`），保存后立即迁移槽位。
+  - **按钮顺序可调**：同一槽位内按 order 值升序排列，数值越小越靠前（官方「在应用中打开」为 -10），保存后立即重排。
+  - **可开关内置插件**：设置页用一个开关整体启用/禁用 DSH 内置的 `open-in-app`（Host 半 + Client 半）；一对包必须同时运行，所以合并为一个开关，关闭后打开按钮完全交由本插件接管。
   - **当前项选择**：点击卡片切换当前启动器，胶囊按钮同步更新。
-  - **拖拽排序** 🆕：预设项和自定义项各自组内拖拽重排，插入线指示落点。胶囊菜单排序与设置页所见即所得。
-  - **可见性控制** 🆕：每项支持独立隐藏/显示，胶囊菜单仅展示可见项。
-  - **自定义项管理** 🆕：添加/编辑自定义启动器，填写名称和路径；保存后立即关闭表单，图标后台自动提取；路径自动清除首尾引号兼容粘贴。
-  - **持久化存储**：设置自动保存到 host 端文件系统，重启后保持。
+  - **拖拽排序**：预设项和自定义项各自组内拖拽重排，插入线指示落点。胶囊菜单排序与设置页所见即所得。
+  - **可见性控制**：每项支持独立隐藏/显示，胶囊菜单仅展示可见项。
+  - **自定义项管理**：添加/编辑自定义启动器，填写名称和路径；路径自动清除首尾引号兼容粘贴。
+  - **持久化存储**：设置自动保存到 `profile/<mode>/open-with/settings.json`，重启后保持。
 - 🌍 **中英双语 UI**：跟随 DSH 客户端全局 locale 自动切换。
 
 ---
@@ -93,9 +96,9 @@ dsh --profile web plugin add "link:$($PWD.Path)"
 
 本插件会在 DSH 宿主端启动外部程序，安全措施如下：
 
-1. **Loopback 通道**：`/open-with` RPC 以 `authority: 'loopback'` 注册，仅本机回环访问可用。
+1. **WebServer 路由 + 连接信任栅栏**：host 端在 `ctx.webServer` 注册 `/open-with/settings`、`/open-with/icon`、`/open-with/open`、`/open-with/log` 四条路由；每条都先经 `ctx.connection.requestRejection` 校验 Host/Origin，抵御 DNS rebinding 与跨站调用。请求体限 64 KiB 且必须是 JSON。
 2. **封闭枚举 target**：启动目标为 TypeScript closed union，非法值无法进入可执行文件名。
-3. **工作区路径来自会话 snapshot**：不接受 URL 参数或外部输入。
+3. **工作区路径来自会话 snapshot 且 host 端二次校验**：必须是可执行文件存在的绝对目录路径。
 
 ---
 
@@ -105,7 +108,7 @@ dsh --profile web plugin add "link:$($PWD.Path)"
 - **必须通过本机浏览器回环访问**（`localhost` / `127.0.0.1`）。
 - **VS Code 需要先把 `code` 命令加入 PATH**：VS Code 命令面板 → `Shell Command: Install 'code' command in PATH`。
 - **终端使用系统自带 cmd.exe / powershell.exe**：自定义启动器支持任意 .exe 路径。
-- **图标提取仅支持 .exe 文件**：后台异步执行，保存后可能短暂显示默认图标。
+- **图标从本地可执行文件按需提取**：由 host 端用 PowerShell 的 `ExtractAssociatedIcon` 取图标并缓存；取不到时回退到内置 DSH 图标。
 
 ---
 
@@ -121,7 +124,9 @@ npm publish --access public
 
 **如何新增一个启动器**：
 
-通过设置页 UI 添加自定义项即可（推荐，无需改代码）：在 DSH 设置面板 → Open With → Custom 区域点击「+ Add」，填写应用名称和 .exe 路径。图标自动提取，支持拖拽排序和可见性控制。
+通过设置页 UI 添加自定义项即可（推荐，无需改代码）：在 DSH 设置面板 → Open With → Custom 区域点击「+ Add」，填写应用名称和 .exe 路径。支持拖拽排序和可见性控制。
+
+若要新增一个**内置**启动器，需要同步修改三处：`src/shared.ts`（`PRESET_ITEMS` 与 `LaunchTarget`）、`src/launch.ts`（启动配方）、`src/client/locales.ts`（显示文案）。
 
 ---
 
@@ -133,7 +138,7 @@ npm publish --access public
 - 🖥 **更多 IDE 启动器**：JetBrains 全家桶、Sublime Text、Neovide、Cursor、Windsurf……
 - 💻 **更多终端候选**：Windows Terminal (`wt`)、PowerShell 7 (`pwsh`)、Git Bash、Alacritty、WezTerm……
 - ⚙️ **设置页增强**：导入/导出配置、批量操作
-- 🎨 **UI 反馈**：把 `launching` / `opened` / `failed` 状态接入 React render
+- 🎨 **UI 反馈**：为启动过程加入进行中 / 成功 / 失败的可视状态
 
 提 PR 前请确保：
 

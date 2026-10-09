@@ -1,12 +1,12 @@
 /**
  * OpenWith 设置页组件：在 DSH 设置面板中插入"打开方式"配置区域。
  *
- * 布局分为两部分：
- * - 上部：预设项卡片列表，支持拖拽排序（组内）、隐藏/显示切换
- * - 下部：自定义项列表 + 添加按钮，支持拖拽排序（组内）、隐藏/显示、
- *   编辑、删除，路径自动清除引号，图标后台提取
+ * 只有一个启动器列表，每个条目能力完全相同：拖拽排序、隐藏/显示、编辑名称
+ * 与路径、删除，以及选择是否把会话目录作为参数传给启动器。种子条目没有任何
+ * 特权，删掉就是删掉。
  *
- * 预设项与自定义项不能跨组拖拽，胶囊菜单排序 = 预设项排序 + 自定义项排序。
+ * 胶囊菜单的顺序就是这个列表的顺序。
+ * 图标不落在设置文档里：每一项的图标由 host 按当前路径现算（`iconUrl`）。
  */
 import {
   Fragment,
@@ -17,80 +17,69 @@ import {
   type DragEvent,
   type KeyboardEvent,
 } from 'react'
+import { Switch } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
-
-/** 默认应用图标（DSH logo），用于图标提取完成前的回退。 */
-const appDefaultPngDataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAKDSURBVFhH7ZZJyI1xFMZ/yJQpMmRhDkkplCglWSAiUaadDSVDlI2FhZAyFAsbCSkiYqGQDBEbU4ayMC1E5qnMUw/nvY7j3O/e78PuPnW63TM9533P//zPCzXU8H/QEhgXlQ1FE6At0ML+K/kMYB9wF7gCdAoxc4A7Ftsg9Ac2AteA98AX4DPwBHgFfHMyJgYD28y2C+gajYbewLSoVMVrjcyT1CUjYxJgj7O/AcaavjMwHJgF3Ad2+yCR708IKsljYKJPBKwOPjeB9cCnoF/ug1YmyasVtWixyzUs8YmiGLX6BwYAHxOn+shXYJkrYnvi42WD8y0dmr8VFbHAcjYHdiQ+asMaPyFN3cl+av16lgRWKypihRGMcPpbwDygx6/n/onB5nAKaGw6/fa1vl5PSCKh7oJY9AXgiPt/OPCWMMUczkSDQcXo4nmQkEtuA4PssqprirbExAWmm8NDoFE0OnQEjieJP9iB0+2ndp5NfCRzY8IC451Tz2gMaAYcSJLr7Swyn35lJmpgyFWCZrFwWhiNCbQTziUE6rnekt7CxWBTm8pCPS4O0NUKbSjQDXieFPEWeJHoNRV1YqdznhyNZTA7IcrkdbIt/4AWShGgeW0VHRLoTR1KCKMsjYHl4GdWW6q4EwpofS4B2jldF5ueSFrI0fp8E/QJu36rHagCQ0wvQt+mUTaKkfwG0N75VYVJYWWeBno5+wnT6/bbbGMpzExW7TFgdJWH+jcomX+id8BBu8leBpLzwFAjmVBmAi4B3SNJJehQ3kuSlZNHtjP0CbbOCtM3oRbbXqBDJKgGbYBVyVNnogLmJwf3n6C1LSO14CRw2W46Tc0mYKr7Yq6hhnrjO8xVal7nQeXKAAAAAElFTkSuQmCC'
-
-// ── 类型定义 ─────────────────────────────────────────────────────────────────
-
-export interface OpenWithItem {
-  id: string
-  /** 显示名称 */
-  name: string
-  /** 可执行文件/目标路径 */
-  path: string
-  /** 图标 data URL（空串表示使用默认图标） */
-  icon: string
-  /** 是否为预设项（预设项不可删除） */
-  preset: boolean
-  /** 启动目标类型（预设项使用） */
-  target?: LaunchTarget
-}
-
-export type LaunchTarget = 'code' | 'cmd' | 'powershell' | 'explorer'
-
-export interface OpenWithSettings {
-  /** 当前选中项的 id */
-  currentId: string
-  /** 所有项列表 */
-  items: OpenWithItem[]
-  /** 在胶囊菜单中隐藏的项 id（不在数组中的项均显示，预设/自定义均可） */
-  hiddenIds: string[]
-}
+import {
+  DEFAULT_ORDER,
+  defaultSettings,
+  normalizeOrder,
+  type OpenWithBuiltinsPayload,
+  type OpenWithItem,
+  type OpenWithPeer,
+  type OpenWithSettings as OpenWithSettingsDoc,
+  type OpenWithSettingsPayload,
+  type Placement,
+} from '../shared.ts'
 
 // ── 注入接口 ─────────────────────────────────────────────────────────────────
 
 export interface OpenWithSettingsInjected {
-  extractIcon: (exePath: string) => Promise<string>
-  /** 解析预设启动器的实际可执行文件路径。 */
-  resolvePresetPath: (target: LaunchTarget) => Promise<string>
-  /** 从 host 端读取设置文件。 */
-  readSettings: () => Promise<OpenWithSettings | null>
-  /** 写入设置到 host 端文件。 */
-  writeSettings: (settings: OpenWithSettings) => Promise<void>
+  /** 读取 host 端归一化后的设置文档与预设启动器实际路径。 */
+  load: () => Promise<OpenWithSettingsPayload>
+  /** 覆盖 host 端设置文档；返回 host 归一化后的结果。 */
+  save: (settings: OpenWithSettingsDoc) => Promise<OpenWithSettingsDoc>
+  /** 某一项图标的文档相对 URL。 */
+  iconUrl: (id: string) => string
+  /** 两个会话头部槽位里当前已注册的条目（含本插件自己）。 */
+  peers: () => readonly OpenWithPeer[]
+  /** 读取 DSH 内置 open-in-app 这一对的启用状态。 */
+  loadBuiltins: () => Promise<OpenWithBuiltinsPayload>
+  /** 一起切换两半；返回 host 刷新后的状态。 */
+  setBuiltin: (enabled: boolean) => Promise<OpenWithBuiltinsPayload>
 }
 
 export type OpenWithSettingsProps =
   PropsLocale<'openWith'>
   & OpenWithSettingsInjected
 
-// ── 预设项 ───────────────────────────────────────────────────────────────────
+// ── 位置选项 ─────────────────────────────────────────────────────────────────
 
-const PRESET_ITEMS: OpenWithItem[] = [
-  { id: 'code', name: 'VS Code', path: 'code', icon: '', preset: true, target: 'code' },
-  { id: 'cmd', name: 'Command Prompt', path: 'cmd', icon: '', preset: true, target: 'cmd' },
-  { id: 'powershell', name: 'PowerShell', path: 'powershell', icon: '', preset: true, target: 'powershell' },
-  { id: 'explorer', name: 'File Explorer', path: 'explorer', icon: '', preset: true, target: 'explorer' },
+/** 位置选项，顺序即设置页展示顺序。 */
+const PLACEMENT_OPTIONS: readonly { value: Placement; labelKey: string }[] = [
+  { value: 'actions', labelKey: 'settings.placement.actions' },
+  { value: 'utilities', labelKey: 'settings.placement.utilities' },
 ]
-
-// ── 默认设置 ────────────────────────────────────────────────────────────────
-
-function defaultSettings(): OpenWithSettings {
-  return { currentId: 'code', items: [...PRESET_ITEMS], hiddenIds: [] }
-}
 
 // ── 图标组件 ─────────────────────────────────────────────────────────────────
 
+/** 行内图标；路径缺失或加载失败时留出等宽空白，不用占位图。 */
 function ItemIcon({ src, size = 20 }: { src: string; size?: number }) {
-  const iconSrc = src || appDefaultPngDataUrl
+  const [failed, setFailed] = useState(false)
+  if (src.length === 0 || failed) {
+    return <span style={{ display: 'block', width: size, height: size, flexShrink: 0 }} />
+  }
   return (
     <img
-      src={iconSrc}
+      src={src}
       alt=""
       width={size}
       height={size}
-      style={{ display: 'block', width: size, height: size, imageRendering: '-webkit-optimize-contrast' }}
+      draggable={false}
+      onError={() => { setFailed(true) }}
+      style={{
+        display: 'block', width: size, height: size, flexShrink: 0,
+        imageRendering: '-webkit-optimize-contrast', userSelect: 'none',
+      }}
     />
   )
 }
@@ -111,90 +100,82 @@ function InsertionLine({ color }: { color: string }) {
 
 // ── 主组件 ───────────────────────────────────────────────────────────────────
 
-export function OpenWithSettings({ extractIcon, resolvePresetPath, readSettings, writeSettings, t }: OpenWithSettingsProps): JSX.Element {
-  const [settings, setSettings] = useState<OpenWithSettings>(defaultSettings)
-  const [resolvedPaths, setResolvedPaths] = useState<Record<string, string>>({})
+export function OpenWithSettings({ load, save, iconUrl, peers, loadBuiltins, setBuiltin, t }: OpenWithSettingsProps): JSX.Element {
+  const [settings, setSettings] = useState<OpenWithSettingsDoc>(defaultSettings)
   // 统一的添加/编辑表单状态：formItemId 为 null 时隐藏，'__add__' 时添加，否则为编辑项 id
   const [formItemId, setFormItemId] = useState<string | null>(null)
   const [formName, setFormName] = useState('')
   const [formPath, setFormPath] = useState('')
+  // 自定义项是否把会话目录作为参数传给启动器
+  const [formPassCwd, setFormPassCwd] = useState(true)
   const [formError, setFormError] = useState('')
   // 拖拽排序状态
-  const [dragState, setDragState] = useState<{ itemId: string; group: 'preset' | 'custom' } | null>(null)
+  const [dragState, setDragState] = useState<{ itemId: string } | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
-  // 用 ref 保持 settings 最新引用，供后台图标提取回调使用
-  const settingsRef = useRef(settings)
-  settingsRef.current = settings
-  // 防止重复提取预设图标
-  const extractedPresets = useRef<Set<string>>(new Set())
+  // 按钮顺序输入框的文本态（允许中途为空或只输入负号，提交时才归一化）
+  const [orderText, setOrderText] = useState(String(DEFAULT_ORDER))
+  // 两个槽位里已注册组件的快照，用于对照本插件按钮的落点
+  const [peerList, setPeerList] = useState<readonly OpenWithPeer[]>([])
+  // 内置 open-in-app 这一对的启用状态；null = 尚未读取
+  const [builtins, setBuiltins] = useState<OpenWithBuiltinsPayload | null>(null)
+  const [builtinBusy, setBuiltinBusy] = useState(false)
+  const [builtinError, setBuiltinError] = useState('')
 
-  // 挂载时解析所有预设项的实际路径
+  // 注入面每次渲染都会给出新的函数引用：固定到 ref，避免加载 effect 反复触发
+  // （反复 GET 会与保存的 POST 竞态，把刚写入的值覆盖回旧值）。
+  const loadRef = useRef(load)
+  loadRef.current = load
+  const saveRef = useRef(save)
+  saveRef.current = save
+  const peersRef = useRef(peers)
+  peersRef.current = peers
+  const loadBuiltinsRef = useRef(loadBuiltins)
+  loadBuiltinsRef.current = loadBuiltins
+  const setBuiltinRef = useRef(setBuiltin)
+  setBuiltinRef.current = setBuiltin
+
+  // 挂载时从 host 端加载设置
   useEffect(() => {
-    const targets: LaunchTarget[] = ['code', 'cmd', 'powershell', 'explorer']
-    for (const target of targets) {
-      resolvePresetPath(target).then((presetPath: string) => {
-        if (presetPath) {
-          setResolvedPaths((prev) => ({ ...prev, [target]: presetPath }))
-        }
-      })
-    }
-  }, [resolvePresetPath])
+    loadRef.current().then((payload) => {
+      setSettings(payload.settings)
+    }).catch(() => { })
+  }, [])
 
-  // 挂载时从 host 端加载持久化设置
-  useEffect(() => {
-    readSettings().then((loaded: OpenWithSettings | null) => {
-      if (loaded && loaded.currentId && loaded.items) {
-        // 确保预设项始终存在
-        const items = [...loaded.items]
-        for (const preset of PRESET_ITEMS) {
-          if (!items.find((it: OpenWithItem) => it.id === preset.id)) {
-            items.push(preset)
-          }
-        }
-        setSettings({ currentId: loaded.currentId, items, hiddenIds: loaded.hiddenIds ?? [] })
-      }
-    })
-  }, [readSettings])
+  // 挂载时快照同槽位组件（其他插件可能稍后才注册，故另给刷新入口）
+  useEffect(() => { setPeerList(peersRef.current()) }, [])
 
-  const persist = useCallback((next: OpenWithSettings) => {
+  // 读取内置插件的启用状态；切换后或外部改过 patch 后都用它同步
+  const refreshBuiltins = useCallback(() => {
+    setBuiltinError('')
+    loadBuiltinsRef.current()
+      .then((payload) => { setBuiltins(payload) })
+      .catch((err: unknown) => { setBuiltinError(err instanceof Error ? err.message : String(err)) })
+  }, [])
+
+  // 挂载时读取一次内置插件状态
+  useEffect(() => { refreshBuiltins() }, [refreshBuiltins])
+
+  // 外部（加载/保存返回）刷新后的顺序回写输入框
+  useEffect(() => { setOrderText(String(settings.order)) }, [settings.order])
+
+  const persist = useCallback((next: OpenWithSettingsDoc) => {
     setSettings(next)
-    writeSettings(next).catch(() => {})
-  }, [writeSettings])
-
-  // 为无图标的预设项从本地 exe 提取图标（运行时，不再内置 base64）
-  useEffect(() => {
-    const presets = settingsRef.current.items.filter((it) => it.preset && it.target && !it.icon)
-    for (const p of presets) {
-      if (extractedPresets.current.has(p.id)) continue
-      const exePath = resolvedPaths[p.target!]
-      if (!exePath) continue
-      extractedPresets.current.add(p.id)
-      extractIcon(exePath).then((icon) => {
-        if (!icon) return
-        const cur = settingsRef.current
-        const nextItems = cur.items.map((it) =>
-          it.id === p.id ? { ...it, icon } : it
-        )
-        const next: OpenWithSettings = { ...cur, items: nextItems }
-        setSettings(next)
-        writeSettings(next).catch(() => {})
-      })
-    }
-  }, [resolvedPaths, settings.items, extractIcon, writeSettings])
+    void saveRef.current(next).catch(() => { })
+  }, [])
 
   // 选择当前项（点击卡片切换）
   const selectCurrent = useCallback((item: OpenWithItem) => {
     persist({ ...settings, currentId: item.id })
   }, [settings, persist])
 
-  // 删除自定义项（同时清理图标和隐藏状态）
+  // 删除项（同时清理隐藏状态）
   const removeItem = useCallback((id: string) => {
     const nextItems = settings.items.filter((it) => it.id !== id)
     const nextCurrentId = settings.currentId === id
       ? (nextItems[0]?.id ?? 'code')
       : settings.currentId
     const nextHiddenIds = settings.hiddenIds.filter((hid) => hid !== id)
-    persist({ currentId: nextCurrentId, items: nextItems, hiddenIds: nextHiddenIds })
+    persist({ ...settings, currentId: nextCurrentId, items: nextItems, hiddenIds: nextHiddenIds })
   }, [settings, persist])
 
   // 切换项在胶囊菜单中的可见性（预设/自定义均可）
@@ -214,8 +195,8 @@ export function OpenWithSettings({ extractIcon, resolvePresetPath, readSettings,
     persist({ ...settings, items: nextItems })
   }, [settings, persist])
 
-  const onDragStart = (e: DragEvent<HTMLDivElement>, itemId: string, group: 'preset' | 'custom'): void => {
-    setDragState({ itemId, group })
+  const onDragStart = (e: DragEvent<HTMLDivElement>, itemId: string): void => {
+    setDragState({ itemId })
     e.dataTransfer.effectAllowed = 'move'
     e.dataTransfer.setData('text/plain', itemId)
   }
@@ -226,8 +207,8 @@ export function OpenWithSettings({ extractIcon, resolvePresetPath, readSettings,
   }
 
   /** 容器级 onDragOver：根据鼠标 Y 坐标计算插入位置 */
-  const onGroupDragOver = (e: DragEvent<HTMLDivElement>, group: 'preset' | 'custom'): void => {
-    if (!dragState || dragState.group !== group) return
+  const onGroupDragOver = (e: DragEvent<HTMLDivElement>): void => {
+    if (!dragState) return
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
     const container = e.currentTarget
@@ -247,9 +228,9 @@ export function OpenWithSettings({ extractIcon, resolvePresetPath, readSettings,
   }
 
   /** 容器级 onDrop：根据 dragOverIndex 执行重排 */
-  const onGroupDrop = (e: DragEvent<HTMLDivElement>, group: 'preset' | 'custom'): void => {
+  const onGroupDrop = (e: DragEvent<HTMLDivElement>): void => {
     e.preventDefault()
-    if (!dragState || dragState.group !== group) return
+    if (!dragState) return
     const fromId = dragState.itemId
     const targetIdx = dragOverIndex
     setDragState(null)
@@ -258,11 +239,7 @@ export function OpenWithSettings({ extractIcon, resolvePresetPath, readSettings,
     const allItems = settings.items
     const fromIndex = allItems.findIndex((it) => it.id === fromId)
     if (fromIndex === -1) return
-    // 将组内相对索引转换为 allItems 绝对索引
-    const groupBaseIndex = group === 'preset'
-      ? 0
-      : allItems.findIndex((it) => !it.preset)
-    let toIndex = groupBaseIndex + targetIdx
+    let toIndex = targetIdx
     // 如果拖到自身或自身下方，需调整目标索引
     if (fromIndex < toIndex) toIndex -= 1
     if (fromIndex === toIndex) return
@@ -275,10 +252,12 @@ export function OpenWithSettings({ extractIcon, resolvePresetPath, readSettings,
       setFormItemId(item.id)
       setFormName(item.name)
       setFormPath(item.path)
+      setFormPassCwd(item.passCwd !== false)
     } else {
       setFormItemId('__add__')
       setFormName('')
       setFormPath('')
+      setFormPassCwd(true)
     }
     setFormError('')
   }, [])
@@ -288,64 +267,64 @@ export function OpenWithSettings({ extractIcon, resolvePresetPath, readSettings,
     setFormItemId(null)
     setFormName('')
     setFormPath('')
+    setFormPassCwd(true)
     setFormError('')
   }, [])
 
-  // 提交表单：添加或编辑（立即保存并关闭，图标后台提取）
+  // 提交表单：添加或编辑（立即保存并关闭）
   const submitForm = useCallback(async () => {
     if (formItemId === null) return
     const name = formName.trim()
-    // 自动清除路径两端的引号（用户从资源管理器复制路径时常带引号）
     let path = formPath.trim()
     if ((path.startsWith('"') && path.endsWith('"')) || (path.startsWith("'") && path.endsWith("'"))) {
       path = path.slice(1, -1)
     }
-    if (!name) { setFormError(t('settings.custom.namePlaceholder')); return }
-    if (!path) { setFormError(t('settings.custom.pathPlaceholder')); return }
+    if (!name) { setFormError(t('settings.edit.namePlaceholder')); return }
+    if (!path) { setFormError(t('settings.edit.pathPlaceholder')); return }
     setFormError('')
 
     if (formItemId === '__add__') {
-      // 添加新项：立即保存（空图标），关闭表单，后台提取图标
-      const newId = `custom-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-      const newItem: OpenWithItem = { id: newId, name, path, icon: '', preset: false }
-      persist({
-        currentId: settings.currentId,
-        items: [...settings.items, newItem],
-        hiddenIds: settings.hiddenIds,
-      })
-      closeForm()
-      // 后台提取图标，完成后自动更新
-      extractIcon(path).then((icon) => {
-        if (!icon) return
-        const cur = settingsRef.current
-        const nextItems = cur.items.map((it) =>
-          it.id === newId ? { ...it, icon } : it
-        )
-        persist({ ...cur, items: nextItems })
-      }).catch(() => {})
-    } else {
-      // 编辑已有项：立即保存，关闭表单，路径变化时后台提取图标
-      const oldItem = settings.items.find((it) => it.id === formItemId)
-      const pathChanged = !!(oldItem && path !== oldItem.path)
-      const icon = pathChanged ? '' : (oldItem?.icon ?? '')
-      const nextItems = settings.items.map((it) =>
-        it.id === formItemId ? { ...it, name, path, icon } : it
-      )
-      persist({ currentId: settings.currentId, items: nextItems, hiddenIds: settings.hiddenIds })
-      closeForm()
-      if (pathChanged) {
-        const editId = formItemId
-        extractIcon(path).then((icon) => {
-          if (!icon) return
-          const cur = settingsRef.current
-          const nextItems = cur.items.map((it) =>
-            it.id === editId ? { ...it, icon } : it
-          )
-          persist({ ...cur, items: nextItems })
-        }).catch(() => {})
+      const newId = `item-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+      const newItem: OpenWithItem = {
+        id: newId, name, path,
+        ...(formPassCwd ? {} : { passCwd: false }),
       }
+      persist({ ...settings, items: [...settings.items, newItem] })
+    } else {
+      const nextItems = settings.items.map((it) => {
+        if (it.id !== formItemId) return it
+        const merged: OpenWithItem = { ...it, name, path }
+        delete (merged as { passCwd?: boolean }).passCwd
+        return formPassCwd ? merged : { ...merged, passCwd: false }
+      })
+      persist({ ...settings, items: nextItems })
     }
-  }, [formItemId, formName, formPath, settings, persist, extractIcon, closeForm, t])
+    closeForm()
+  }, [formItemId, formName, formPath, formPassCwd, settings, persist, closeForm, t])
+
+  // 提交按钮顺序：归一化后保存；非法或未变则回退显示
+  const commitOrder = useCallback(() => {
+    const raw = orderText.trim()
+    const parsed = raw === '' ? null : normalizeOrder(Number(raw))
+    if (parsed === null || parsed === settings.order) {
+      setOrderText(String(settings.order))
+      return
+    }
+    persist({ ...settings, order: parsed })
+  }, [orderText, settings, persist])
+
+  // 一起切换内置 open-in-app 的两个半边，并用 host 返回的状态回填
+  const toggleBuiltin = useCallback((enabled: boolean) => {
+    setBuiltinBusy(true)
+    setBuiltinError('')
+    setBuiltinRef.current(enabled).then((payload) => {
+      setBuiltins(payload)
+    }).catch((err: unknown) => {
+      setBuiltinError(err instanceof Error ? err.message : String(err))
+    }).finally(() => {
+      setBuiltinBusy(false)
+    })
+  }, [])
 
   // 表单键盘事件
   const onFormKeyDown = (e: KeyboardEvent<HTMLDivElement>): void => {
@@ -364,125 +343,180 @@ export function OpenWithSettings({ extractIcon, resolvePresetPath, readSettings,
   const brandAlpha = 'var(--dsw-alias-brand-primary-alpha, rgba(79, 140, 255, 0.06))'
   const inputBg = 'var(--dsw-specific-input, transparent)'
 
-  const presetItems = settings.items.filter((it) => it.preset)
-  const customItems = settings.items.filter((it) => !it.preset)
+  const allItems = settings.items
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       {/*
-        ── 预设项 ────────────────────────────────────────────────────────────
+        ── 按钮位置 / 按钮顺序 / 内置插件 ───────────────────────────────────────────────
       */}
-      <div
-        style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}
-        onDragOver={(e) => onGroupDragOver(e, 'preset')}
-        onDrop={(e) => onGroupDrop(e, 'preset')}
-      >
-        <label style={{ fontSize: '12px', fontWeight: 500, color: secondaryColor, marginBottom: '6px' }}>
-          {t('settings.preset.title')}
-        </label>
-
-        {presetItems.map((item, itemIndex) => {
-          const isActive = item.id === settings.currentId
-          const isDragging = dragState?.itemId === item.id
-          const showInsertBefore = dragState?.group === 'preset' && dragOverIndex === itemIndex
-          return (
-            <Fragment key={item.id}>
-              {showInsertBefore && <InsertionLine color={brandColor} />}
-              <div
-                data-drag-item
-                role="button"
-                tabIndex={0}
-                draggable
-                onClick={() => selectCurrent(item)}
-                onDragStart={(e) => onDragStart(e, item.id, 'preset')}
-                onDragEnd={onDragEnd}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectCurrent(item) } }}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '10px',
-                  padding: '8px 12px',
-                  border: `1px solid ${isActive ? brandColor : borderVar}`,
-                  borderRadius: '8px',
-                  background: isActive ? brandAlpha : 'transparent',
-                  cursor: isDragging ? 'grabbing' : 'grab',
-                  opacity: isDragging ? 0.4 : 1,
-                  transition: 'border-color 0.15s, background 0.15s, opacity 0.15s',
-                }}
-                onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = hoverVar }}
-                onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = 'transparent' }}
-              >
-                <span
-                  style={{
-                    display: 'flex', alignItems: 'center', color: tertiaryColor, fontSize: '13px',
-                    cursor: 'grab', userSelect: 'none', flexShrink: 0, lineHeight: 1,
-                  }}
-                  title={t('settings.dragTip') as string}
-                >
-                  ⋮⋮
-                </span>
-                <ItemIcon src={item.icon} size={20} />
-                <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '1px' }}>
-                  <span style={{ fontSize: '13px', fontWeight: 500, lineHeight: 1.3 }}>
-                    {item.name}
-                    {isActive && (
-                      <span style={{ fontSize: '10px', color: brandColor, marginLeft: '6px', fontWeight: 600 }}>
-                        ✓ {t('settings.current.title')}
-                      </span>
-                    )}
-                  </span>
-                  <span style={{
-                    fontSize: '11px', color: tertiaryColor,
-                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                  }}>
-                    {resolvedPaths[item.id] || item.path}
-                  </span>
-                </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: '24px 40px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: '0 1 auto', minWidth: 0 }}>
+          <label style={{ fontSize: '12px', fontWeight: 500, color: secondaryColor, marginBottom: '6px' }}>
+            {t('settings.placement.title')}
+          </label>
+          <div
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '2px', alignSelf: 'flex-start',
+              padding: '2px', border: `1px solid ${borderVar}`, borderRadius: '6px',
+            }}
+          >
+            {PLACEMENT_OPTIONS.map((option) => {
+              const active = settings.placement === option.value
+              return (
                 <button
+                  key={option.value}
                   type="button"
-                  onClick={(e) => { e.stopPropagation(); toggleHidden(item.id) }}
-                  title={settings.hiddenIds.includes(item.id) ? t('settings.show') : t('settings.hide')}
+                  onClick={() => { persist({ ...settings, placement: option.value }) }}
                   style={{
-                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                    width: '28px', height: '24px', padding: 0, border: 'none', borderRadius: '4px',
-                    background: 'transparent', color: settings.hiddenIds.includes(item.id) ? dangerColor : secondaryColor,
-                    cursor: 'pointer', fontSize: '13px', opacity: 0.6, transition: 'opacity 0.15s, background 0.15s',
+                    height: '30px', padding: '0 8px', border: `1px solid ${borderVar}`, borderRadius: '6px',
+                    background: active ? brandColor : 'transparent',
+                    color: active ? '#fff' : textVar,
+                    cursor: 'pointer', fontSize: '12px', fontWeight: active ? 500 : 400,
+                    transition: 'background 0.15s, color 0.15s',
                   }}
-                  onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.background = hoverVar }}
-                  onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.6'; e.currentTarget.style.background = 'transparent' }}
                 >
-                  {settings.hiddenIds.includes(item.id) ? '👁‍🗨' : '👁'}
+                  {t(option.labelKey)}
                 </button>
-              </div>
-            </Fragment>
-          )
-        })}
-        {dragState?.group === 'preset' && dragOverIndex === presetItems.length && (
-          <InsertionLine color={brandColor} />
-        )}
+              )
+            })}
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: '0 1 auto', minWidth: 0 }}>
+          <label style={{ fontSize: '12px', fontWeight: 500, color: secondaryColor, marginBottom: '6px' }}>
+            {t('settings.order.title')}
+          </label>
+          <input
+            type="number"
+            inputMode="numeric"
+            value={orderText}
+            onChange={(e) => { setOrderText(e.target.value) }}
+            onBlur={commitOrder}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); commitOrder() } }}
+            style={{
+              width: '70px', height: '30px', padding: '0 8px',
+              border: `1px solid ${borderVar}`, borderRadius: '6px',
+              background: inputBg, color: textVar, fontSize: '12px',
+            }}
+          />
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', flex: '0 1 auto', minWidth: 0 }}>
+          <label style={{ fontSize: '12px', fontWeight: 500, color: secondaryColor, marginBottom: '6px' }}>
+            {t('settings.builtins.title')}
+          </label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minHeight: '30px' }}>
+            {builtins === null
+              ? <span style={{ fontSize: '11px', color: tertiaryColor }}>{t('settings.builtins.loading')}</span>
+              : !builtins.available
+                ? <span style={{ fontSize: '11px', color: tertiaryColor }}>
+                  {builtins.stale === true ? t('settings.builtins.stale') : t('settings.builtins.unavailable')}
+                </span>
+                : (() => {
+                  const note = !builtins.present
+                    ? t('settings.builtins.missing')
+                    : builtins.readOnlyReason === 'management-required'
+                      ? t('settings.builtins.readOnlyManagement')
+                      : builtins.readOnlyReason === 'unaddressable'
+                        ? t('settings.builtins.readOnlyUnaddressable')
+                        : ''
+                  return (
+                    <>
+                      <span style={{ fontSize: '11px', color: tertiaryColor }}>
+                        {(builtins.enabled ? t('settings.builtins.on') : t('settings.builtins.off'))
+                          + (note === '' ? '' : ` · ${note}`)}
+                      </span>
+                      <Switch
+                        checked={builtins.enabled}
+                        disabled={!builtins.present || builtins.readOnly || builtinBusy}
+                        onChange={(next: boolean) => { toggleBuiltin(next) }}
+                        label={t('settings.builtins.title')}
+                      />
+                    </>
+                  )
+                })()}
+          </div>
+          {builtinError !== '' && (
+            <span style={{ fontSize: '11px', color: dangerColor, marginTop: '4px' }}>{builtinError}</span>
+          )}
+        </div>
       </div>
 
       {/*
-        ── 自定义项 ──────────────────────────────────────────────────────────
+        ── 同槽位组件 ────────────────────────────────────────────────────────
+      */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <label style={{ fontSize: '12px', fontWeight: 500, color: secondaryColor }}>
+            {t('settings.peers.title')}
+          </label>
+          <button
+            type="button"
+            onClick={() => { setPeerList(peersRef.current()) }}
+            style={{
+              height: '22px', padding: '0 8px', border: `1px solid ${borderVar}`,
+              borderRadius: '4px', background: 'transparent', color: secondaryColor,
+              cursor: 'pointer', fontSize: '11px',
+            }}
+          >
+            {t('settings.peers.refresh')}
+          </button>
+        </div>
+        {PLACEMENT_OPTIONS.map((option) => {
+          const rows = peerList.filter((peer) => peer.slot === option.value)
+          return (
+            <div key={option.value} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+              <span style={{ fontSize: '11px', color: tertiaryColor }}>{t(option.labelKey)}</span>
+              {rows.length === 0
+                ? <span style={{ fontSize: '11px', color: tertiaryColor }}>{t('settings.peers.empty')}</span>
+                : rows.map((peer) => (
+                  <div
+                    key={`${peer.slot}-${peer.id}`}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '8px',
+                      padding: '3px 8px', borderRadius: '4px',
+                      background: peer.self ? brandAlpha : 'transparent',
+                      border: `1px solid ${peer.self ? brandColor : 'transparent'}`,
+                      fontSize: '11px',
+                    }}
+                  >
+                    <span style={{ color: peer.self ? brandColor : textVar, fontWeight: peer.self ? 500 : 400 }}>
+                      {peer.self ? `${peer.id} · ${t('settings.peers.self')}` : peer.id}
+                    </span>
+                    <span style={{ marginLeft: 'auto', color: secondaryColor, fontVariantNumeric: 'tabular-nums' }}>
+                      {`order ${String(peer.order)} · priority ${String(peer.priority)}`}
+                    </span>
+                  </div>
+                ))}
+            </div>
+          )
+        })}
+      </div>
+
+      {/*
+        ── 启动器 ────────────────────────────────────────────────────────────
       */}
       <div
         style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}
-        onDragOver={(e) => onGroupDragOver(e, 'custom')}
-        onDrop={(e) => onGroupDrop(e, 'custom')}
+        onDragOver={onGroupDragOver}
+        onDrop={onGroupDrop}
       >
         <label style={{ fontSize: '12px', fontWeight: 500, color: secondaryColor, marginBottom: '6px' }}>
-          {t('settings.custom.title')}
+          {t('settings.items.title')}
         </label>
 
-        {customItems.length === 0 && formItemId !== '__add__' && (
+        {allItems.length === 0 && formItemId !== '__add__' && (
           <span style={{ fontSize: '12px', color: tertiaryColor, padding: '4px 0' }}>
-            {t('settings.noCustom')}
+            {t('settings.noItems')}
           </span>
         )}
 
-        {customItems.map((item, itemIndex) => {
+        {allItems.map((item, itemIndex) => {
           const isActive = item.id === settings.currentId
           const isEditing = item.id === formItemId
           const isDragging = dragState?.itemId === item.id
-          const showInsertBefore = dragState?.group === 'custom' && dragOverIndex === itemIndex
+          const showInsertBefore = dragState !== null && dragOverIndex === itemIndex
 
           // 编辑模式：显示内联编辑表单
           if (isEditing) {
@@ -498,7 +532,7 @@ export function OpenWithSettings({ extractIcon, resolvePresetPath, readSettings,
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
                     <label style={{ fontSize: '11px', fontWeight: 500, color: secondaryColor }}>
-                      {t('settings.custom.namePlaceholder')}
+                      {t('settings.edit.namePlaceholder')}
                     </label>
                     <input
                       type="text"
@@ -514,7 +548,7 @@ export function OpenWithSettings({ extractIcon, resolvePresetPath, readSettings,
                   </div>
                   <div style={{ flex: 2, display: 'flex', flexDirection: 'column', gap: '4px' }}>
                     <label style={{ fontSize: '11px', fontWeight: 500, color: secondaryColor }}>
-                      {t('settings.custom.pathPlaceholder')}
+                      {t('settings.edit.pathPlaceholder')}
                     </label>
                     <input
                       type="text"
@@ -527,6 +561,16 @@ export function OpenWithSettings({ extractIcon, resolvePresetPath, readSettings,
                       }}
                     />
                   </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '11px', color: secondaryColor }}>
+                    {t('settings.edit.passCwd')}
+                  </span>
+                  <Switch
+                    checked={formPassCwd}
+                    onChange={(next: boolean) => { setFormPassCwd(next) }}
+                    label={t('settings.edit.passCwd')}
+                  />
                 </div>
                 {formError && (
                   <span style={{ fontSize: '11px', color: dangerColor }}>{formError}</span>
@@ -570,7 +614,7 @@ export function OpenWithSettings({ extractIcon, resolvePresetPath, readSettings,
                 tabIndex={0}
                 draggable
                 onClick={() => selectCurrent(item)}
-                onDragStart={(e) => onDragStart(e, item.id, 'custom')}
+                onDragStart={(e) => onDragStart(e, item.id)}
                 onDragEnd={onDragEnd}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectCurrent(item) } }}
                 style={{
@@ -595,7 +639,7 @@ export function OpenWithSettings({ extractIcon, resolvePresetPath, readSettings,
                 >
                   ⋮⋮
                 </span>
-                <ItemIcon src={item.icon} size={20} />
+                <ItemIcon src={iconUrl(item.id)} size={20} />
                 <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '1px' }}>
                   <span style={{ fontSize: '13px', fontWeight: 500, lineHeight: 1.3 }}>
                     {item.name}
@@ -612,21 +656,16 @@ export function OpenWithSettings({ extractIcon, resolvePresetPath, readSettings,
                     {item.path}
                   </span>
                 </div>
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); toggleHidden(item.id) }}
-                  title={settings.hiddenIds.includes(item.id) ? t('settings.show') : t('settings.hide')}
-                  style={{
-                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                    width: '28px', height: '24px', padding: 0, border: 'none', borderRadius: '4px',
-                    background: 'transparent', color: settings.hiddenIds.includes(item.id) ? dangerColor : secondaryColor,
-                    cursor: 'pointer', fontSize: '13px', opacity: 0.6, transition: 'opacity 0.15s, background 0.15s',
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.background = hoverVar }}
-                  onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.6'; e.currentTarget.style.background = 'transparent' }}
+                <span
+                  onClick={(e) => { e.stopPropagation() }}
+                  style={{ display: 'flex', flexShrink: 0 }}
                 >
-                  {settings.hiddenIds.includes(item.id) ? '👁‍🗨' : '👁'}
-                </button>
+                  <Switch
+                    checked={!settings.hiddenIds.includes(item.id)}
+                    onChange={() => { toggleHidden(item.id) }}
+                    label={settings.hiddenIds.includes(item.id) ? t('settings.show') : t('settings.hide')}
+                  />
+                </span>
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); openForm(item) }}
@@ -661,12 +700,12 @@ export function OpenWithSettings({ extractIcon, resolvePresetPath, readSettings,
             </Fragment>
           )
         })}
-        {dragState?.group === 'custom' && dragOverIndex === customItems.length && (
+        {dragState !== null && dragOverIndex === allItems.length && (
           <InsertionLine color={brandColor} />
         )}
 
         {/*
-          ── 自定义添加按钮 / 表单 ───────────────────────────────────────────
+          ── 添加按钮 / 表单 ─────────────────────────────────────────────────
         */}
         {formItemId !== '__add__' ? (
           <button
@@ -689,7 +728,7 @@ export function OpenWithSettings({ extractIcon, resolvePresetPath, readSettings,
             }}
           >
             <span style={{ fontSize: '16px', lineHeight: 1 }}>+</span>
-            <span>{t('settings.custom.add')}</span>
+            <span>{t('settings.items.add')}</span>
           </button>
         ) : (
           <div
@@ -702,13 +741,13 @@ export function OpenWithSettings({ extractIcon, resolvePresetPath, readSettings,
             <div style={{ display: 'flex', gap: '8px' }}>
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 <label style={{ fontSize: '11px', fontWeight: 500, color: secondaryColor }}>
-                  {t('settings.custom.namePlaceholder')}
+                  {t('settings.edit.namePlaceholder')}
                 </label>
                 <input
                   type="text"
                   value={formName}
                   onChange={(e) => { setFormName(e.target.value); setFormError('') }}
-                  placeholder={t('settings.custom.namePlaceholder')}
+                  placeholder={t('settings.edit.namePlaceholder')}
                   autoFocus
                   style={{
                     height: '30px', padding: '0 8px',
@@ -719,13 +758,13 @@ export function OpenWithSettings({ extractIcon, resolvePresetPath, readSettings,
               </div>
               <div style={{ flex: 2, display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 <label style={{ fontSize: '11px', fontWeight: 500, color: secondaryColor }}>
-                  {t('settings.custom.pathPlaceholder')}
+                  {t('settings.edit.pathPlaceholder')}
                 </label>
                 <input
                   type="text"
                   value={formPath}
                   onChange={(e) => { setFormPath(e.target.value); setFormError('') }}
-                  placeholder={t('settings.custom.pathPlaceholder')}
+                  placeholder={t('settings.edit.pathPlaceholder')}
                   style={{
                     height: '30px', padding: '0 8px',
                     border: `1px solid ${borderVar}`, borderRadius: '4px',
@@ -733,6 +772,16 @@ export function OpenWithSettings({ extractIcon, resolvePresetPath, readSettings,
                   }}
                 />
               </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '11px', color: secondaryColor }}>
+                {t('settings.edit.passCwd')}
+              </span>
+              <Switch
+                checked={formPassCwd}
+                onChange={(next: boolean) => { setFormPassCwd(next) }}
+                label={t('settings.edit.passCwd')}
+              />
             </div>
             {formError && (
               <span style={{ fontSize: '11px', color: dangerColor }}>{formError}</span>
@@ -759,7 +808,7 @@ export function OpenWithSettings({ extractIcon, resolvePresetPath, readSettings,
                   fontSize: '12px', fontWeight: 500,
                 }}
               >
-                {t('settings.custom.add')}
+                {t('settings.items.add')}
               </button>
             </div>
           </div>

@@ -1,24 +1,29 @@
 /**
- * Browser-side plugin: 注入胶囊拆分按钮到对话头部操作槽位，
- * 注册中英文词典，并注入设置页面到 DSH 设置面板。
+ * Browser-side plugin.
  *
  * 功能：
- * - 胶囊拆分按钮：左键直接启动当前项，右键下拉菜单切换
- * - 下拉菜单按设置页排序展示（预设项在前，自定义项在后）
- * - 支持自定义项：名称、路径、自动图标提取、可见性控制
- * - 设置页：拖拽排序（组内）、隐藏/显示切换、添加/编辑/删除自定义项
- * - 图标后台提取：保存后立即关闭表单，图标异步更新
+ * - 胶囊拆分按钮：左半直接启动当前项，右侧下拉菜单切换启动器；
+ *   注入位置可配置（会话标题旁 / 右侧工具区），改设置后立即迁移槽位。
+ * - 注册中英文词典，并把设置页注入 DSH 设置面板。
+ *
+ * 所有数据都走 host 的 webServer 路由（`./controller.ts`），浏览器侧不缓存，
+ * 因此菜单与设置页展示的永远是 host 实际持有的文档。
  */
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
-import type {} from '@deepseek-ai/dsh-client-connection/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
-import { OpenWithButton } from './OpenVscodeButton.tsx'
-import type { CapsuleItem } from './OpenVscodeButton.tsx'
-import { OpenWithSettings } from './OpenWithSettings.tsx'
+import {
+  DEFAULT_ORDER, DEFAULT_PLACEMENT, OPEN_WITH_ICON_PREFIX_ROUTE,
+  type OpenWithPeer, type OpenWithSettings, type Placement,
+} from '../shared.ts'
+import { OpenWithController, type OpenWithLogLevel } from './controller.ts'
+import { OpenWithButton } from './OpenWithButton.tsx'
+import type { HeaderActionSlot } from './OpenWithButton.tsx'
+import { OpenWithSettings as OpenWithSettingsPanel } from './OpenWithSettings.tsx'
 import { en, zh, type OpenWithKey } from './locales.ts'
 
-export type { OpenWithButtonProps, OpenWithInjected } from './OpenVscodeButton.tsx'
+export type { OpenWithButtonProps, OpenWithInjected } from './OpenWithButton.tsx'
+export type { OpenWithSettingsProps } from './OpenWithSettings.tsx'
 export type { OpenWithKey } from './locales.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
@@ -30,155 +35,129 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 
 const NS = 'openWith'
 
-export const inject = ['slots', 'locale', 'connection', 'sessions']
+/** placement 选项到会话头部槽位的映射。 */
+const PLACEMENT_SLOT: Record<Placement, HeaderActionSlot> = {
+  actions: 'conversation.session.header.actions',
+  utilities: 'conversation.session.header.utilities',
+}
+
+export const inject = ['slots', 'locale', 'sessions']
 
 export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'open-with: dictionaries')
 
-  // 1. 注入对话头部胶囊按钮
-  // NOTE: inject target must equal the registered slot name itself
-  // (`conversation.session.header.actions`), not its parent
-  // (`conversation.session.header`). DSH's slot system only runs the
-  // registration callback when the injected slot actually renders, and
-  // `slots.register(name)` requires that slot's declaration to already
-  // exist in the registry — registering a child slot from a parent-level
-  // inject races the declaration and throws
-  // `slot "conversation.session.header.actions" is not declared
-  // (a parent entry's children table must declare it)`. This mirrors how
-  // the first-party `@deepseek-ai/dsh-client-ui-jobs` plugin contributes
-  // its header action. See https://github.com/anywhere-labs/dsh-desktop
-  ctx.effect(
-    () => ctx.slots.inject('conversation.session.header.actions', () => ctx.slots.register(
-      {
-        name: 'conversation.session.header.actions',
-        id: 'open-with',
-        order: 10,
-        locale: NS,
-        inject: () => {
-          const log = (level: 'info' | 'warn' | 'error', message: string, extra?: unknown): void => {
-            const safeExtra = extra instanceof Error
-              ? { name: extra.name, message: extra.message, stack: extra.stack, cause: extra.cause }
-              : extra
-            const consoleLine = `[open-with] ${message}`
-            if (level === 'error') console.error(consoleLine, safeExtra)
-            else if (level === 'warn') console.warn(consoleLine, safeExtra)
-            else console.log(consoleLine, safeExtra)
-            ctx.connection.rpc.call('/open-with', 'log', { level, message, extra: safeExtra }).catch(() => {})
-          }
+  const controller = new OpenWithController()
 
-          return {
-            launch: async (cwd: string, target = 'code') => {
-              return ctx.connection.rpc.call('/open-with', 'launch', { cwd, target })
-            },
-            getCwd: (sessionId: string): string | undefined => {
-              try {
-                const state = ctx.sessions.list.getSnapshot()
-                const summary = state.byId[sessionId]
-                if (summary === undefined) {
-                  const allIds = Object.keys(state.byId)
-                  log('warn', 'session not in list', { requested: sessionId, count: allIds.length, sample: allIds.slice(0, 3) })
-                }
-                return summary?.cwd
-              } catch (err) {
-                console.error('[open-with] getCwd failed:', err)
-                return undefined
-              }
-            },
-            log,
-            readHiddenIds: async (): Promise<string[]> => {
-              try {
-                const result = await ctx.connection.rpc.call('/open-with', 'readSettings', {})
-                if (result && typeof result === 'object' && 'ok' in result) {
-                  const settings = (result as { value?: { settings?: { hiddenIds?: string[] } } }).value?.settings
-                  if (settings && Array.isArray(settings.hiddenIds)) {
-                    return settings.hiddenIds.filter((id: unknown) => typeof id === 'string')
-                  }
-                }
-                return []
-              } catch {
-                return []
-              }
-            },
-            readCapsuleItems: async (): Promise<CapsuleItem[]> => {
-              try {
-                const result = await ctx.connection.rpc.call('/open-with', 'readSettings', {})
-                if (result && typeof result === 'object' && 'ok' in result) {
-                  const settings = (result as { value?: { settings?: { items?: CapsuleItem[]; hiddenIds?: string[] } } }).value?.settings
-                  if (settings && Array.isArray(settings.items)) {
-                    return settings.items.filter((it: CapsuleItem) => {
-                      if (typeof it.id !== 'string' || typeof it.name !== 'string') return false
-                      return true
-                    })
-                  }
-                }
-                return []
-              } catch {
-                return []
-              }
-            },
-          }
-        },
-      },
-      OpenWithButton,
-    )),
-    'open-with: button registration',
-  )
+  /** 某一项图标的文档相对 URL。 */
+  const iconUrl = (id: string): string => `${OPEN_WITH_ICON_PREFIX_ROUTE}/${encodeURIComponent(id)}`
 
-  // 2. 注入设置页面（settings.section），参考 dsh-wallpaper-engine 的注册方式
-  ctx.effect(
-    () => ctx.slots.inject('settings.section', () => ctx.slots.register(
-      {
-        name: 'settings.section',
+  /** 取会话工作区目录；会话未知时返回 undefined。 */
+  const getCwd = (sessionId: string): string | undefined => {
+    try {
+      return ctx.sessions.list.getSnapshot().byId[sessionId]?.cwd
+    } catch (err) {
+      controller.log('warn', 'session lookup failed', err)
+      return undefined
+    }
+  }
+
+  /**
+   * 快照两个会话头部槽位里已注册的条目，供设置页展示本插件按钮的相邻组件。
+   * 条目按渲染顺序返回（先 priority 升序，再 order 升序）。
+   */
+  const listPeers = (): OpenWithPeer[] => {
+    const peers: OpenWithPeer[] = []
+    for (const placement of Object.keys(PLACEMENT_SLOT) as Placement[]) {
+      const slot = PLACEMENT_SLOT[placement]
+      let entries: readonly {
+        options?: { id?: unknown; order?: unknown; priority?: unknown }
+        registrant?: unknown
+      }[] = []
+      try {
+        entries = ctx.slots.entries(slot) as never
+      } catch (err) {
+        controller.log('warn', 'slot ledger read failed', { slot, err })
+        continue
+      }
+      for (const entry of entries) {
+        const id = entry.options?.id
+        if (typeof id !== 'string' || id.length === 0) continue
+        peers.push({
+          slot: placement,
+          id,
+          order: typeof entry.options?.order === 'number' ? entry.options.order : 0,
+          priority: typeof entry.options?.priority === 'number' ? entry.options.priority : 0,
+          ...(typeof entry.registrant === 'string' ? { registrant: entry.registrant } : {}),
+          self: id === 'open-with',
+        })
+      }
+    }
+    return peers
+  }
+
+  let mounted: { placement: Placement; order: number; dispose: () => void } | null = null
+
+  /**
+   * 把胶囊按钮挂到 placement 对应的槽位，并写入 order 控制同槽位内的前后位置；
+   * 位置与顺序都没变时为空操作。
+   * @param placement - 目标注入位置。
+   * @param order - 同槽位内的排序值，越小越靠前。
+   */
+  const mount = (placement: Placement, order: number): void => {
+    if (mounted?.placement === placement && mounted.order === order) return
+    mounted?.dispose()
+    mounted = null
+    const slot = PLACEMENT_SLOT[placement]
+    mounted = {
+      placement,
+      order,
+      dispose: ctx.slots.inject(slot, () => ctx.slots.register({
+        name: slot,
         id: 'open-with',
-        order: 600,
-        label: 'Open With',
+        order,
         locale: NS,
         inject: () => ({
-          extractIcon: async (exePath: string): Promise<string> => {
-            try {
-              console.log('[open-with] extractIcon RPC start', exePath)
-              const result = await ctx.connection.rpc.call('/open-with', 'extractIcon', { exePath })
-              if (result && typeof result === 'object' && 'ok' in result) {
-                const icon = result.ok ? (result as { value?: { icon?: string } }).value?.icon ?? '' : ''
-                console.log('[open-with] extractIcon RPC result', { ok: result.ok, iconLen: icon.length })
-                return icon
-              }
-              console.warn('[open-with] extractIcon unexpected result', result)
-              return ''
-            } catch (err) {
-              console.error('[open-with] extractIcon RPC error', err)
-              return ''
-            }
+          getSettings: () => controller.load(),
+          launch: (target: string, path: string) => controller.launch(target, path),
+          getCwd,
+          log: (level: OpenWithLogLevel, message: string, extra?: unknown) => {
+            controller.log(level, message, extra)
           },
-          resolvePresetPath: async (target: 'code' | 'cmd' | 'powershell' | 'explorer'): Promise<string> => {
-            try {
-              const result = await ctx.connection.rpc.call('/open-with', 'resolvePresetPath', { target })
-              if (result && typeof result === 'object' && 'ok' in result) {
-                return (result as { value?: { path?: string } }).value?.path ?? ''
-              }
-              return ''
-            } catch {
-              return ''
-            }
-          },
-          readSettings: async (): Promise<unknown> => {
-            try {
-              const result = await ctx.connection.rpc.call('/open-with', 'readSettings', {})
-              if (result && typeof result === 'object' && 'ok' in result) {
-                return (result as { value?: { settings?: unknown } }).value?.settings ?? null
-              }
-              return null
-            } catch {
-              return null
-            }
-          },
-          writeSettings: async (settings: unknown): Promise<void> => {
-            await ctx.connection.rpc.call('/open-with', 'writeSettings', { settings })
-          },
+          iconUrl,
         }),
-      },
-      OpenWithSettings,
-    )),
-    'open-with: settings section',
-  )
+      }, OpenWithButton)),
+    }
+  }
+
+  // 先按默认位置挂载，再用持久化设置校正（HTTP 读，通常毫秒级返回）。
+  mount(DEFAULT_PLACEMENT, DEFAULT_ORDER)
+  void controller.load()
+    .then((payload) => { mount(payload.settings.placement, payload.settings.order) })
+    .catch((err: unknown) => { controller.log('warn', 'settings read failed during mount', err) })
+
+  // ── 设置页面 ──────────────────────────────────────────────────────────────
+
+  ctx.effect(() => ctx.slots.inject('settings.section', () => ctx.slots.register(
+    {
+      name: 'settings.section',
+      id: 'open-with',
+      order: 600,
+      label: () => ctx.locale.bind(NS)('menu.aria'),
+      locale: NS,
+      inject: () => ({
+        load: () => controller.load(),
+        save: async (settings: OpenWithSettings): Promise<OpenWithSettings> => {
+          const saved = await controller.save(settings)
+          // 位置或顺序可能在设置页被改动，立即把按钮迁到位。
+          mount(saved.placement, saved.order)
+          return saved
+        },
+        iconUrl,
+        peers: listPeers,
+        loadBuiltins: () => controller.loadBuiltins(),
+        setBuiltin: (enabled: boolean) => controller.setBuiltin(enabled),
+      }),
+    },
+    OpenWithSettingsPanel,
+  )), 'open-with: settings section')
 }

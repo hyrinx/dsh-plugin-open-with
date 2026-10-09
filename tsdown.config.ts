@@ -55,6 +55,11 @@ export default defineConfig([
     dts: false,
     clean: false,
     external: HOST_EXTERNALS,
+    outputOptions: {
+      // Pin the output filename: tsdown names ESM chunks *.mjs here, but
+      // package.json main/exports point at lib/index.js.
+      entryFileNames: 'index.js',
+    },
   },
   // Client half: CJS bundle wrapped in the ModuleLoader factory handshake.
   {
